@@ -1,0 +1,38 @@
+# Description
+#
+#
+#
+devices:
+- name: PCM_Spiral_1550
+  wavelength: 1550
+  output_path_cutback: 'D:\\Downloads\\output_cutback.pdf'
+  output_path_raw: 'D:\\Downloads\\output_raw.pdf'
+  target_prefix: "PCM_SpiralWG"
+  target_suffix: "TE"
+  characterization: "cutback_waveguide"
+  port: 1
+
+- name: PCM_Straight_1550
+  wavelength: 1550
+  output_path_cutback: 'D:\\Downloads\\output_cutback.pdf'
+  output_path_raw: 'D:\\Downloads\\output_raw.pdf'
+  target_prefix: "PCM_StraightWGloss"
+  target_suffix: "TE"
+  port: 1
+
+# - name: PCM_Spiral_1310
+#   wavelength: 1310
+#   output_path_cutback: 'D:\\Downloads\\output_cutback.pdf'
+#   output_path_raw: 'D:\\Downloads\\output_raw.pdf'
+#   target_prefix: "PCM_SpiralWG"
+#   target_suffix: "TE"
+
+# - name: PCM_Straight_1310
+#   wavelength: 1310
+#   output_path_cutback: 'D:\\Downloads\\output_cutback.pdf'
+#   output_path_raw: 'D:\\Downloads\\output_raw.pdf'
+#   target_prefix: "PCM_StraightWGloss"
+#   target_suffix: "TE"
+
+# cutback_device
+# bragg
