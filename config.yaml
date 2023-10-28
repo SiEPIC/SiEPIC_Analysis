@@ -3,36 +3,32 @@
 #
 #
 devices:
-- name: PCM_Spiral_1550
+- name: PCM_Spiral_te1550nm
   wavelength: 1550
-  output_path_cutback: 'D:\\Downloads\\output_cutback.pdf'
-  output_path_raw: 'D:\\Downloads\\output_raw.pdf'
+  polarization: TE
+  output_path_cutback: 'D:\\Downloads\\1550_spiral_cutback.pdf'
+  output_path_raw: 'D:\\Downloads\\1550_spiral_raw.pdf'
   target_prefix: "PCM_SpiralWG"
   target_suffix: "TE"
   characterization: "cutback_waveguide"
   port: 1
 
-- name: PCM_Straight_1550
+- name: PCM_Straight_te1550nm
   wavelength: 1550
-  output_path_cutback: 'D:\\Downloads\\output_cutback.pdf'
-  output_path_raw: 'D:\\Downloads\\output_raw.pdf'
+  polarization: TE
+  output_path_cutback: 'D:\\Downloads\\1550_straight_cutback.pdf'
+  output_path_raw: 'D:\\Downloads\\1550_straight_raw.pdf'
   target_prefix: "PCM_StraightWGloss"
   target_suffix: "TE"
+  characterization: "cutback_waveguide"
   port: 1
 
-# - name: PCM_Spiral_1310
-#   wavelength: 1310
-#   output_path_cutback: 'D:\\Downloads\\output_cutback.pdf'
-#   output_path_raw: 'D:\\Downloads\\output_raw.pdf'
-#   target_prefix: "PCM_SpiralWG"
-#   target_suffix: "TE"
-
-# - name: PCM_Straight_1310
-#   wavelength: 1310
-#   output_path_cutback: 'D:\\Downloads\\output_cutback.pdf'
-#   output_path_raw: 'D:\\Downloads\\output_raw.pdf'
-#   target_prefix: "PCM_StraightWGloss"
-#   target_suffix: "TE"
-
-# cutback_device
-# bragg
+-  name: PCM_YBranch_te1550nm
+   wavelength: 1550
+   polarization: TE
+   output_path_cutback: 'D:\\Downloads\\1550_YBranch_cutback.pdf'
+   output_path_raw: 'D:\\Downloads\\1550_YBranch_raw.pdf'
+   target_prefix: "PCM_Ycutbacks_N"
+   target_suffix: "_2"
+   characterization: "cutback_device"
+   port: 1

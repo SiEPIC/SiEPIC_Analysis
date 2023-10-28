@@ -8,15 +8,17 @@ import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 
 class Device:
-    def __init__(self, wavl, root_path, output_path_cutback, output_path_raw, files_path, target_prefix, target_suffix, port):
+    def __init__(self, wavl, root_path, output_path_cutback, output_path_raw, files_path, target_prefix, target_suffix, port, name, characterization):
         self.wavl = wavl
         self.root_path = root_path
         self.output_path_cutback = output_path_cutback
         self.output_path_raw = output_path_raw
-        self.files_path = os.path.join(root_path, f"{wavl}_TE")  # Define files_path as an instance variable
+        self.files_path = files_path
         self.target_prefix = target_prefix
         self.target_suffix = target_suffix
         self.port = port
+        self.name = name
+        self.characterization = characterization
 
     def get_waveguide_length(self, device_id):
         """
@@ -74,10 +76,12 @@ class Device:
         return wavelengths_file, channel_pwr
 
     def process_data(self, wavelengths_file, channel_pwr):
-        # Divide by 10000 to see the result in dB/cm
-        lengths_cm = [i / 10000 for i in wavelengths_file]
 
-        # if waveguide ...
+        if self.characterization == 'cutback_waveguide':
+            # Divide by 10000 to see the result in dB/cm
+            lengths_cm = [i / 10000 for i in wavelengths_file]
+        elif self.characterization == 'cutback_device':
+            lengths_cm = [i for i in wavelengths_file]
 
         # Sort lengths_cm from smallest to largest
         lengths_cm_sorted = sorted(lengths_cm)
@@ -144,16 +148,24 @@ class Device:
         # Plot each dataset with a different line color
         for i, (key, data) in enumerate(separated_data.items()):
             color = cmap(i % 10)  # Use modulo to cycle through the colormap
+
+            if self.characterization == 'cutback_waveguide':
+                label = f"L = {key}um"
+            elif self.characterization == 'cutback_device':
+                label = f"Number of Devices = {key}"
+            else:
+                label = str(key)  # Default label
+
             plt.plot(
                 data["wavelength"],
                 data["power"],
-                label=f"L = {key}um",
+                label=label,
                 color=color
             )
 
         plt.ylabel('Power (dBm)', color='black')
         plt.xlabel('Wavelength (nm)', color='black')
-        plt.title("Raw Measurement of Cutback Structures")
+        plt.title(f"Raw Measurement of Cutback Structures for {self.name}")
         matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
         plt.legend()  # Display legends for different sets
 
@@ -298,10 +310,15 @@ class Device:
         plt.plot(wavelength_data, np.abs(slopes), color='blue', marker='', linestyle='-', label='Insertion loss (raw)')
         plt.plot(x_fit, np.abs(y_fit), color='red', linestyle='-', label='Insertion loss (fit)', linewidth=3)
 
-        # plt.ylabel('Propagation Loss (dB/cm)', color='black')
-        plt.ylabel('Insertion Loss (dB/cm)', color='black')
+        # Plot labels
         plt.xlabel('Wavelength (nm)', color='black')
-        plt.title("Insertion Losses Using the Cutback Method")
+
+        if self.characterization == 'cutback_waveguide':
+            plt.ylabel('Insertion Loss (dB/cm)', color='black')
+        elif self.characterization == 'cutback_device':
+            plt.ylabel('Insertion Loss (dB/device)', color='black')
+
+        plt.title(f"Insertion Losses Using the Cutback Method for {self.name}")
         plt.grid(True)
         plt.legend()
         matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
