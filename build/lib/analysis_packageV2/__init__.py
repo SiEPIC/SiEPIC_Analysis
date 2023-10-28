@@ -4,6 +4,6 @@ __author__ = """Tenna Yuan"""
 __email__ = 'tenna@student.ubc.ca'
 __version__ = '0.1.0'
 
-from analysis_packageV2 import device
+from analysis_packageV2 import device, execute
 
-__all__ = ['device']
+__all__ = ['device', 'execute']

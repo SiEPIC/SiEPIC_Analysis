@@ -3,7 +3,8 @@
 __author__ = """Tenna Yuan"""
 __email__ = 'tenna@student.ubc.ca'
 __version__ = '0.1.0'
-__all__ = ['Device', 'Execute']
 
 from analysis_packageV2.device import Device
 from analysis_packageV2.execute import Execute
+
+__all__ = ['Device', 'Execute']
