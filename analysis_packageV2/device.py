@@ -8,11 +8,10 @@ import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 
 class Device:
-    def __init__(self, wavl, root_path, output_path_cutback, output_path_raw, files_path, target_prefix, target_suffix, port, name, characterization):
+    def __init__(self, wavl, root_path, main_script_directory, files_path, target_prefix, target_suffix, port, name, characterization):
         self.wavl = wavl
         self.root_path = root_path
-        self.output_path_cutback = output_path_cutback
-        self.output_path_raw = output_path_raw
+        self.main_script_directory = main_script_directory
         self.files_path = files_path
         self.target_prefix = target_prefix
         self.target_suffix = target_suffix
@@ -128,7 +127,7 @@ class Device:
 
         return data_sets
 
-    def graphRaw(self, separated_data, output_path_raw):
+    def graphRaw(self, separated_data):
         """
         Create a combined graph for raw data with automatically defined line colors.
 
@@ -169,7 +168,8 @@ class Device:
         matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
         plt.legend()  # Display legends for different sets
 
-        plt.savefig(output_path_raw, format='pdf')
+        pdf_path_raw, pdf_path_cutback = self.saveGraph()
+        plt.savefig(pdf_path_raw, format='pdf')
         plt.show()  # Display the combined graph
 
     def getArrays(self, input_to_function, lengths_um):
@@ -327,12 +327,36 @@ class Device:
         print(
             f'The insertion loss at wavelength = {target_wavelength} is {slope_at_wavl} +/- {error[wavelength_data == target_wavelength][0]}')
 
-        plt.savefig(self.output_path_cutback, format='pdf')
+        pdf_path_raw, pdf_path_cutback = self.saveGraph()
+        plt.savefig(pdf_path_cutback, format='pdf')
 
         # Show the plot
         plt.show()
 
         return slope_at_wavl
+
+    def saveGraph(self):
+        """
+        Save a graph as PDF files in a directory based on the `self.name` attribute.
+
+        This method creates a directory named after `self.name` inside the specified `main_script_directory`
+        (or a custom directory if provided) and saves two PDF files within this directory: one for raw data
+        and another for cutback data.
+
+        Returns:
+        - pdf_path_raw (str): The full path to the saved raw data PDF file.
+        - pdf_path_cutback (str): The full path to the saved cutback data PDF file.
+        """
+        # Create a directory based on self.name if it doesn't exist
+        output_directory = os.path.join(self.main_script_directory, self.name)
+        os.makedirs(output_directory, exist_ok=True)
+
+        # Combine the directory and the filename to get the full paths
+        pdf_path_raw = os.path.join(output_directory, f"{self.name}_raw.pdf")
+        pdf_path_cutback = os.path.join(output_directory, f"{self.name}_cutback.pdf")
+
+        # Now, you can save your PDFs to pdf_path_raw and pdf_path_cutback
+        return pdf_path_raw, pdf_path_cutback
 
     def execute(self, target_wavelength=None):
         # Load data
@@ -357,7 +381,7 @@ class Device:
             print()
 
         # Call the graphRaw method on the device object
-        self.graphRaw(separated_data, self.output_path_raw)
+        self.graphRaw(separated_data)
 
         # Call the getArrays method
         power_arrays, wavelength_data = self.getArrays(input_to_function, lengths_um)
