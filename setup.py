@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='analysis_packageV2',
+    name='analysis_package',
     version='0.1',
     description='description to be filled',
     author='Tenna Yuan',
