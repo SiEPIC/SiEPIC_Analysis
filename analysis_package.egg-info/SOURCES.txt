@@ -1,0 +1,8 @@
+setup.py
+analysis_package.egg-info/PKG-INFO
+analysis_package.egg-info/SOURCES.txt
+analysis_package.egg-info/dependency_links.txt
+analysis_package.egg-info/top_level.txt
+analysis_packageV2/__init__.py
+analysis_packageV2/device.py
+analysis_packageV2/execute.py
