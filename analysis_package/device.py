@@ -51,11 +51,8 @@ class Device:
             if os.path.basename(root).startswith(self.target_prefix):
                 for file in files:
                     if file.endswith(".csv"):
-                        channel = siap.analysis.processCSV(os.path.join(root, file))
+                        channel = siap.analysis.processCSV(root+r'/'+file)
                         channel_pwr.append(channel)
-
-                        print("channel power:", channel_pwr.append(channel))
-
                         wavelengths_file.append(self.get_waveguide_length(channel.deviceID))
 
         return wavelengths_file, channel_pwr
@@ -114,11 +111,11 @@ class Device:
         sorted_data = []
 
         # Separate the arrays into dictionaries
-        for i in range(0, len(input_to_function), num_arrays_per_dict):
-            key = lengths_um[i // num_arrays_per_dict]
+        for i in range(0, len(input_to_function)):
+            key = lengths_um[i]
             data = {
                 "wavelength": input_to_function[i][0],
-                "power": input_to_function[i + 1][1]
+                "power": input_to_function[i][1]
             }
             sorted_data.append((key, data))
 
@@ -128,6 +125,12 @@ class Device:
         # Create the final data_sets dictionary with sorted data
         data_sets = {str(key): data for key, data in sorted_data}
 
+        # Print the separated data for debug
+        # for key, data in data_sets.items():
+            # print(f"Key: {key}")
+            # print(f"Wavelength: {data['wavelength']}")
+            # print(f"Power: {data['power']}")
+            # print()  # Just for separating the sets visually
         return data_sets
 
     def graphRaw(self, separated_data):
@@ -172,7 +175,7 @@ class Device:
 
         pdf_path_raw, pdf_path_cutback = self.saveGraph()
         plt.savefig(pdf_path_raw, format='pdf')
-        plt.show()  # Display the combined graph
+        # plt.show()  # Display the combined graph
 
     def getArrays(self, input_to_function, lengths_um):
         """
@@ -317,13 +320,15 @@ class Device:
         print(
             f'The insertion loss at wavelength = {target_wavelength} is {slope_at_wavl} +/- {error[wavelength_data == target_wavelength][0]} for {self.name}')
 
+        cutback_error = error[wavelength_data == target_wavelength][0]
+
         pdf_path_raw, pdf_path_cutback = self.saveGraph()
         plt.savefig(pdf_path_cutback, format='pdf')
 
         # Show the plot
-        plt.show()
+        # plt.show()
 
-        return slope_at_wavl
+        return slope_at_wavl, cutback_error
 
     def saveGraph(self):
         """
@@ -369,6 +374,8 @@ class Device:
             slopes = self.getSlopes(power_arrays, lengths_cm_sorted, wavelength_data, target_wavelength)
 
             # Call the graphCutback method
-            self.graphCutback(self.wavl, wavelength_data, slopes)
+            cutback_value = self.graphCutback(self.wavl, wavelength_data, slopes)
         else:
             print("Target wavelength not specified. Skipping getSlopes and graphCutback.")
+
+        return cutback_value
