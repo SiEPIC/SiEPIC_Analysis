@@ -9,13 +9,14 @@ from scipy.interpolate import interp1d
 from scipy.signal import find_peaks
 
 class GroupIndex:
-    def __init__(self, directory_path, wavl, device_prefix, device_suffix, port_cross, port_bar,
+    def __init__(self, directory_path, wavl, pol, device_prefix, device_suffix, port_cross, port_bar,
                  name, main_script_directory,
                  DL=53.793e-6, wavl_range=None, window=210, peak_prominence=0.25):
         if wavl_range is None:
             wavl_range = [1460, 1580]
         self.directory_path = directory_path
         self.wavl = wavl
+        self.pol = pol
         self.device_prefix = device_prefix
         self.device_suffix = device_suffix
         self.port_cross = port_cross
@@ -81,7 +82,7 @@ class GroupIndex:
             axs[2].set_title("Extinction Ratio as a function of Wavelength")
 
             plt.tight_layout()
-            plt.show()
+            # plt.show()
 
         return midpoints, periods, extinction_ratios
 
@@ -130,7 +131,7 @@ class GroupIndex:
             plt.ylabel('Y')
             plt.legend(loc='best')
             plt.grid(True)
-            plt.show()
+            # plt.show()
 
         return x_new, y_average, y_std, y_average
 
@@ -198,7 +199,7 @@ class GroupIndex:
         idx = np.argmin(np.abs(ng_avg_wavl - target_wavelength))
 
         # Print ng_avg and error bar at target_wavelength
-        print(f"Group Index at {target_wavelength} nm is {ng_avg[idx]} ± {ng_std[idx]} for {self.name}")
+        print(f"Group Index at {target_wavelength} nm is {ng_avg[idx]} ± {ng_std[idx]} for {self.name}_{self.pol}{self.wavl}")
 
         gindex = ng_avg[idx]
         gindexError = ng_std[idx]
@@ -211,7 +212,7 @@ class GroupIndex:
 
         pdf_path_gindex, pdf_path_contour = self.saveGraph()
         plt.savefig(pdf_path_gindex, format='pdf')
-        plt.show()  # Display the plot
+        # plt.show()  # Display the plot
 
         return gindex, gindexError
 
@@ -259,13 +260,13 @@ class GroupIndex:
         # Displaying the plot
         pdf_path_gindex, pdf_path_contour = self.saveGraph()
         plt.savefig(pdf_path_contour, format='pdf')
-        plt.show()  # Display the plot
+        # plt.show()  # Display the plot
 
     def saveGraph(self):
         """
-        Save a graph as PDF files in a directory based on the `self.name` attribute.
+        Save a graph as PDF files in a directory based on the `self.name` and `self.pol` attributes.
 
-        This method creates a directory named after `self.name` inside the specified `main_script_directory`
+        This method creates a directory named after `self.name` and `self.pol` inside the specified `main_script_directory`
         (or a custom directory if provided) and saves two PDF files within this directory: one for raw data
         and another for cutback data.
 
@@ -273,13 +274,13 @@ class GroupIndex:
         - pdf_path_raw (str): The full path to the saved raw data PDF file.
         - pdf_path_cutback (str): The full path to the saved cutback data PDF file.
         """
-        # Create a directory based on self.name if it doesn't exist
-        output_directory = os.path.join(self.main_script_directory, self.name)
+        # Create a directory based on self.name, self.pol, and self.wavl if it doesn't exist
+        output_directory = os.path.join(self.main_script_directory, f"{self.name}_{self.pol}{self.wavl}")
         os.makedirs(output_directory, exist_ok=True)
 
         # Combine the directory and the filename to get the full paths
-        pdf_path_gindex = os.path.join(output_directory, f"{self.name}_gindex.pdf")
-        pdf_path_contour = os.path.join(output_directory, f"{self.name}_contour.pdf")
+        pdf_path_gindex = os.path.join(output_directory, f"{self.name}_{self.pol}{self.wavl}_gindex.pdf")
+        pdf_path_contour = os.path.join(output_directory, f"{self.name}_{self.pol}{self.wavl}_contour.pdf")
 
-        # Now, you can save your PDFs to pdf_path_raw and pdf_path_cutback
+        # Now, you can save your PDFs
         return pdf_path_gindex, pdf_path_contour

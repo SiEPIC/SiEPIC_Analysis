@@ -18,7 +18,7 @@ import numpy as np
 
 class DirectionalCoupler:
     def __init__(self, fname_data, device_prefix, port_thru, port_drop, device_suffix,
-                 name, main_script_directory,
+                 name, wavl, pol, main_script_directory,
                  tol=3, N_seg=325):
         self.fname_data = fname_data
         self.device_prefix = device_prefix
@@ -26,6 +26,8 @@ class DirectionalCoupler:
         self.port_drop = port_drop
         self.device_suffix = device_suffix
         self.name = name
+        self.wavl = wavl
+        self.pol = pol
         self.main_script_directory = main_script_directory
 
         self.tol = tol
@@ -89,15 +91,12 @@ class DirectionalCoupler:
         # save plots
         pdf_path_devices_raw, pdf_path_devices_calib, pdf_path_analysis, pdf_path_analysis_WL = self.saveGraph()
         plt.savefig(pdf_path_devices_raw, format='pdf')
-        plt.show()  # Display graph
+        # plt.show()  # Display graph
 
         plt.figure()
         for device in self.devices:
             label = 'Period = ' + str(self.getDeviceParameter(device.deviceID, self.device_prefix, self.device_suffix)) + ' nm'
             plt.plot(device.wavl, device.dropCalib, label=label)
-
-        # print device.dropCalib result at target_wavelength
-        # print()
 
         plt.legend(loc=0)
         plt.ylabel('Transmission (dB)', color='black')
@@ -108,7 +107,7 @@ class DirectionalCoupler:
         # save plots
         pdf_path_devices_raw, pdf_path_devices_calib, pdf_path_analysis, pdf_path_analysis_WL = self.saveGraph()
         plt.savefig(pdf_path_devices_calib, format='pdf')
-        plt.show()  # Display graph
+        # plt.show()  # Display graph
 
 
     def plot_analysis_results(self):
@@ -130,7 +129,7 @@ class DirectionalCoupler:
         # save plots
         pdf_path_devices_raw, pdf_path_devices_calib, pdf_path_analysis, pdf_path_analysis_WL = self.saveGraph()
         plt.savefig(pdf_path_analysis, format='pdf')
-        plt.show()  # Display graph
+        # plt.show()  # Display graph
 
     def overlay_simulation_data(self, target_wavelength, sim_label = 'Simulation (SiO2 Clad)'):
         simulation_period_sio2 = [313, 315, 317, 319, 321, 323]
@@ -149,20 +148,46 @@ class DirectionalCoupler:
         plt.scatter(self.period, self.WL, color='r', marker='x', label='Experiment')
         plt.scatter(simulation_period_sio2, simulation_wavl_sio2, color='b', marker='o', label=sim_label)
 
-        # find simulation period at simulation wavelength target_wavelength
-        # find self.period at self.WL of target_wavelength
-
         plt.legend()
         plt.ylabel('Bragg Wavelength [nm]', color='black')
         plt.xlabel('Grating Period [nm]', color='black')
         plt.title("Comparison of Bragg wavelength between simulation and experiment.")
         matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
 
+        # Define a common set of wavelengths for interpolation
+        common_wavelengths = np.linspace(min(min(self.period), min(simulation_period_sio2)),
+                                         max(max(self.period), max(simulation_period_sio2)), 100)
+
+        # Interpolate both experimental and simulated data to the common set of wavelengths
+        exp_wavelength_interp = np.interp(common_wavelengths, self.period, self.WL)
+        sim_wavelength_interp = np.interp(common_wavelengths, simulation_period_sio2, simulation_wavl_sio2)
+
+        # Fit a polynomial to the experimental data
+        exp_coefficients = np.polyfit(common_wavelengths, exp_wavelength_interp, 2)
+        exp_poly_func = np.poly1d(exp_coefficients)
+
+        # Fit a polynomial to the simulated data
+        sim_coefficients = np.polyfit(common_wavelengths, sim_wavelength_interp, 2)
+        sim_poly_func = np.poly1d(sim_coefficients)
+
+        # Evaluate both fit lines at the common wavelengths
+        exp_wavelength_fit = exp_poly_func(common_wavelengths)
+        sim_wavelength_fit = sim_poly_func(common_wavelengths)
+
+        # Calculate the absolute differences between the fit lines
+        differences = np.abs(exp_wavelength_fit - sim_wavelength_fit)
+
+        # Find the average difference
+        average_difference = np.mean(differences)
+
+        print(f"Bragg Grating Wavelength Drift is: {average_difference} nm for {self.name}_{self.pol}{self.wavl}")
+
         # save plots
         pdf_path_devices_raw, pdf_path_devices_calib, pdf_path_analysis, pdf_path_analysis_WL = self.saveGraph()
         plt.savefig(pdf_path_analysis_WL, format='pdf')
-        plt.show()  # Display graph
+        # plt.show()  # Display graph
 
+        return average_difference
 
     def saveGraph(self):
         """
@@ -176,15 +201,15 @@ class DirectionalCoupler:
         - pdf_path_raw (str): The full path to the saved raw data PDF file.
         - pdf_path_cutback (str): The full path to the saved cutback data PDF file.
         """
-        # Create a directory based on self.name if it doesn't exist
-        output_directory = os.path.join(self.main_script_directory, self.name)
+        # Create a directory based on self.name, self.pol, and self.wavl if it doesn't exist
+        output_directory = os.path.join(self.main_script_directory, f"{self.name}_{self.pol}{self.wavl}")
         os.makedirs(output_directory, exist_ok=True)
 
         # Combine the directory and the filename to get the full paths
-        pdf_path_devices_raw = os.path.join(output_directory, f"{self.name}_devices_raw.pdf")
-        pdf_path_devices_calib = os.path.join(output_directory, f"{self.name}_devices_calib.pdf")
-        pdf_path_analysis = os.path.join(output_directory, f"{self.name}_analysis.pdf")
-        pdf_path_analysis_WL = os.path.join(output_directory, f"{self.name}_analysis_WL.pdf")
+        pdf_path_devices_raw = os.path.join(output_directory, f"{self.name}_{self.pol}{self.wavl}_devices_raw.pdf")
+        pdf_path_devices_calib = os.path.join(output_directory, f"{self.name}_{self.pol}{self.wavl}_devices_calib.pdf")
+        pdf_path_analysis = os.path.join(output_directory, f"{self.name}_{self.pol}{self.wavl}_analysis.pdf")
+        pdf_path_analysis_WL = os.path.join(output_directory, f"{self.name}_{self.pol}{self.wavl}_analysis_WL.pdf")
 
         # Now, you can save your PDFs to pdf_path_raw and pdf_path_cutback
         return pdf_path_devices_raw, pdf_path_devices_calib, pdf_path_analysis, pdf_path_analysis_WL

@@ -17,145 +17,178 @@ class Execute:
         self.root_path = root_path
         self.results_list = []
 
-    def analyze_cutback(self):
-        results_directory = os.path.join(self.root_path, "analysis_results")
+    def analyze_cutback(self, dataset, results_directory):
+        # results_directory = os.path.join(self.root_path, "analysis_results")
 
         # Check if the "analysis_results" folder exists, and create it if it doesn't
-        if not os.path.exists(results_directory):
-            os.makedirs(results_directory)
+        # if not os.path.exists(results_directory):
+            # os.makedirs(results_directory)
 
         # Construct the path to your .yaml file using root_path
-        yaml_file = os.path.join(self.root_path, 'config.yaml')
+        # yaml_file = os.path.join(self.root_path, 'config.yaml')
 
         # Load data from the .yaml file
-        with open(yaml_file, 'r') as file:
-            data = yaml.load(file, Loader=yaml.FullLoader)
+        # with open(yaml_file, 'r') as file:
+            # data = yaml.load(file, Loader=yaml.FullLoader)
 
         # Iterate through the data sets and perform the analysis
-        for dataset in data['devices']:
-            name = dataset['name']
-            wavl = dataset['wavelength']
-            pol = dataset['polarization']
-            files_path = os.path.join(self.root_path, f"{wavl}_{pol}")
-            target_prefix = dataset['target_prefix']
-            target_suffix = dataset['target_suffix']
-            characterization = dataset['characterization']
-            port = dataset['port']
+        # for dataset in data['devices']:
 
-            # Create an instance of the Device class (Assuming you have a Device class)
-            device = Device(wavl, self.root_path, results_directory, files_path, target_prefix, target_suffix, port, name, characterization)
 
-            # Call the execute method to perform the analysis
-            cutback_value, cutback_error = device.execute(target_wavelength=wavl)
+        name = dataset['name']
+        wavl = dataset['wavelength']
+        pol = dataset['polarization']
+        files_path = os.path.join(self.root_path, f"{wavl}_{pol}")
+        target_prefix = dataset['target_prefix']
+        target_suffix = dataset['target_suffix']
+        characterization = dataset['characterization']
+        port = dataset['port']
 
-            # Append the results to the list
-            result_entry = {'Name': name, 'Wavelength': wavl, 'Polarization': pol, 'Cutback Value': cutback_value,
-                            'Error': cutback_error}
-            # add error as val to return
-            self.results_list.append(result_entry)
+        # Create an instance of the Device class (Assuming you have a Device class)
+        device = Device(wavl, pol, self.root_path, results_directory, files_path, target_prefix, target_suffix, port, name, characterization)
+
+        # Call the execute method to perform the analysis
+        cutback_value, cutback_error = device.execute(target_wavelength=wavl)
+
+        # Initialize results list for this analysis
+        self.results_list = []
+
+        characterization = dataset['characterization']
+
+        # Append the results to the list
+        result_entry = {'Name': name, 'Wavelength': wavl, 'Polarization': pol, 'Data': cutback_value,
+                        'Error': cutback_error, 'Characterization': characterization}
+        self.results_list.append(result_entry)
 
         # Convert the list of results to a DataFrame
         results_df = pd.DataFrame(self.results_list)
 
         # Round the 'Cutback Value' and 'Error' columns to two decimal places in the DataFrame
-        results_df['Cutback Value'] = results_df['Cutback Value'].round(2)
+        results_df['Data'] = results_df['Data'].round(2)
         results_df['Error'] = results_df['Error'].round(2)
-
-        self.pdfReport(results_df)
 
         return results_df
 
-    def analyze_bragg(self):
-        results_directory = os.path.join(self.root_path, "analysis_results")
+    def analyze_bragg(self, dataset, results_directory):
+        # results_directory = os.path.join(self.root_path, "analysis_results")
 
         # Check if the "analysis_results" folder exists, and create it if it doesn't
-        if not os.path.exists(results_directory):
-            os.makedirs(results_directory)
+        # if not os.path.exists(results_directory):
+        # os.makedirs(results_directory)
 
         # Construct the path to your .yaml file using root_path
-        yaml_file = os.path.join(self.root_path, 'braggconfig.yaml')
+        # yaml_file = os.path.join(self.root_path, 'braggconfig.yaml')
 
         # Load data from the .yaml file
-        with open(yaml_file, 'r') as file:
-            data = yaml.load(file, Loader=yaml.FullLoader)
+        # with open(yaml_file, 'r') as file:
+        # data = yaml.load(file, Loader=yaml.FullLoader)
 
         # Iterate through the data sets and perform the analysis
-        for dataset in data['devices']:
-            name = dataset['name']
-            wavl = dataset['wavelength']
-            pol = dataset['polarization']
-            files_path = os.path.join(self.root_path, f"{wavl}_{pol}")
-            device_prefix = dataset['device_prefix']
-            device_suffix = dataset['device_suffix']
-            port_drop = dataset['port_drop']
-            port_thru = dataset['port_thru']
+        # for dataset in data['devices']:
+        name = dataset['name']
+        wavl = dataset['wavelength']
+        pol = dataset['polarization']
+        files_path = os.path.join(self.root_path, f"{wavl}_{pol}")
+        device_prefix = dataset['device_prefix']
+        device_suffix = dataset['device_suffix']
+        port_drop = dataset['port_drop']
+        port_thru = dataset['port_thru']
 
-            dc = DirectionalCoupler(
-                fname_data=files_path,
-                device_prefix=device_prefix,
-                port_thru=port_thru,
-                port_drop=port_drop,
-                device_suffix=device_suffix,
-                name=name,
-                main_script_directory=results_directory
+        dc = DirectionalCoupler(
+             fname_data=files_path,
+             device_prefix=device_prefix,
+             port_thru=port_thru,
+             port_drop=port_drop,
+             device_suffix=device_suffix,
+             name=name,
+             wavl=wavl,
+             pol=pol,
+             main_script_directory=results_directory
             )
 
-            dc.process_files()
-            dc.plot_devices()
-            dc.plot_analysis_results()
-            dc.overlay_simulation_data(target_wavelength=wavl)
+        dc.process_files()
+        dc.plot_devices()
+        dc.plot_analysis_results()
+        bragg_drift = dc.overlay_simulation_data(target_wavelength=wavl)
 
-    def analyze_gIndex(self):
-        results_directory = os.path.join(self.root_path, "analysis_results")
+        # Initialize results list for this analysis
+        self.results_list = []
 
-        # Check if the "analysis_results" folder exists, and create it if it doesn't
-        if not os.path.exists(results_directory):
-            os.makedirs(results_directory)
+        characterization = dataset['characterization']
 
-        # Construct the path to your .yaml file using root_path
-        yaml_file = os.path.join(self.root_path, 'groupIndexconfig.yaml')
-
-        # Load data from the .yaml file
-        with open(yaml_file, 'r') as file:
-            data = yaml.load(file, Loader=yaml.FullLoader)
-
-        # Iterate through the data sets and perform the analysis
-        for dataset in data['devices']:
-            name = dataset['name']
-            wavl = dataset['wavelength']
-            pol = dataset['polarization']
-            # files_path = os.path.join(self.root_path, f"{wavl}_{pol}")
-            device_prefix = dataset['device_prefix']
-            device_suffix = dataset['device_suffix']
-            port_cross = dataset['port_cross']
-            port_bar = dataset['port_bar']
-
-            group_index = GroupIndex(directory_path=self.root_path,
-                                     wavl=wavl,
-                                     device_prefix=device_prefix,
-                                     device_suffix=device_suffix,
-                                     port_cross=port_cross,
-                                     port_bar=port_bar,
-                                     name=name,
-                                     main_script_directory=results_directory)
-
-            group_index.process_device_data()
-            group_index.sort_devices_by_length()
-            gindex, gindexError = group_index.plot_group_index(target_wavelength=wavl)
-            group_index.plot_coupling_coefficient_contour()
-
-            # Append the results to the list
-            result_entry = {'Name': name, 'Wavelength': wavl, 'Polarization': pol, 'Data': gindex,
-                            'Error': gindexError}
-            # add error as val to return
-            self.results_list.append(result_entry)
+        # Append the results to the list
+        result_entry = {'Name': name, 'Wavelength': wavl, 'Polarization': pol, 'Data': bragg_drift,
+                        'Error': 'N/A', 'Characterization': characterization}
+        self.results_list.append(result_entry)
 
         # Convert the list of results to a DataFrame
         results_df = pd.DataFrame(self.results_list)
 
+        # Round the 'Cutback Value' and 'Error' columns to two decimal places in the DataFrame
+        results_df['Data'] = results_df['Data'].round(2)
+
         return results_df
 
-    def pdfReport(self, results_df):
+    def analyze_gIndex(self, dataset, results_directory):
+        # results_directory = os.path.join(self.root_path, "analysis_results")
+
+        # Check if the "analysis_results" folder exists, and create it if it doesn't
+        # if not os.path.exists(results_directory):
+        # os.makedirs(results_directory)
+
+        # Construct the path to your .yaml file using root_path
+        # yaml_file = os.path.join(self.root_path, 'groupIndexconfig.yaml')
+
+        # Load data from the .yaml file
+        # with open(yaml_file, 'r') as file:
+        # data = yaml.load(file, Loader=yaml.FullLoader)
+
+        # Iterate through the data sets and perform the analysis
+        # for dataset in data['devices']:
+        name = dataset['name']
+        wavl = dataset['wavelength']
+        pol = dataset['polarization']
+        files_path = os.path.join(self.root_path, f"{wavl}_{pol}")
+        device_prefix = dataset['device_prefix']
+        device_suffix = dataset['device_suffix']
+        port_cross = dataset['port_cross']
+        port_bar = dataset['port_bar']
+
+        group_index = GroupIndex(directory_path=files_path,
+                                 wavl=wavl,
+                                 pol = pol,
+                                 device_prefix=device_prefix,
+                                 device_suffix=device_suffix,
+                                 port_cross=port_cross,
+                                 port_bar=port_bar,
+                                 name=name,
+                                 main_script_directory=results_directory)
+
+        group_index.process_device_data()
+        group_index.sort_devices_by_length()
+        gindex, gindexError = group_index.plot_group_index(target_wavelength=wavl)
+        group_index.plot_coupling_coefficient_contour()
+
+        # Initialize results list for this analysis
+        self.results_list = []
+
+        characterization = dataset['characterization']
+
+        # Append the results to the list
+        result_entry = {'Name': name, 'Wavelength': wavl, 'Polarization': pol, 'Data': gindex,
+                        'Error': gindexError, 'Characterization': characterization}
+        self.results_list.append(result_entry)
+
+        # Convert the list of results to a DataFrame
+        results_df = pd.DataFrame(self.results_list)
+
+        # Round the 'Cutback Value' and 'Error' columns to two decimal places in the DataFrame
+        results_df['Data'] = results_df['Data'].round(2)
+        results_df['Error'] = results_df['Error'].round(2)
+
+        return results_df
+
+    def pdfReport(self, results_directory, results_df):
         # Prompt user for chipname input
         chipname = input("Enter chip name: ")
 
@@ -172,8 +205,11 @@ class Execute:
         # Prompt user for process input
         process = input("Enter process: ")
 
+        # Create the full path for the PDF file including the results_directory
+        pdf_path = os.path.join(results_directory, f"{chipname}_analysis_report.pdf")
+
         # Create a PDF document
-        doc = SimpleDocTemplate(f"{chipname}_analysis_report.pdf", pagesize=letter)
+        doc = SimpleDocTemplate(pdf_path, pagesize=letter)
 
         # Create a story to add elements to the PDF
         story = []
@@ -194,15 +230,22 @@ class Execute:
         paragraph_text = Paragraph(paragraph, paragraph_style)
         story.append(paragraph_text)
 
+        # Rename the columns in the DataFrame
+        results_df = results_df.rename(columns={'Characterization': 'Analysis'})
+
         # Create a table with the data from the DataFrame
         table_data = [results_df.columns.tolist()] + results_df.values.tolist()
-        table = Table(table_data, colWidths=[1.5 * inch] * len(results_df.columns))
+
+        # Specify different widths for each column (adjust these values as needed)
+        col_widths = [1.5 * inch, 1.0 * inch, 1.0 * inch, 1.0 * inch, 1.0 * inch, 2.0 * inch]
+
+        table = Table(table_data, colWidths=col_widths)
         table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.ghostwhite),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Times-Roman'),
-            ('FONTSIZE', (0, 0), (-1, 0), 16),  # Title font size 16
+            ('FONTSIZE', (0, 0), (-1, 0), 14),  # Title font size 14
             ('FONTSIZE', (0, 1), (-1, -1), 11),  # Table font size 12
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
             ('BACKGROUND', (0, 1), (-1, 1), colors.whitesmoke),  # Background for header row
@@ -213,3 +256,41 @@ class Execute:
 
         # Build the PDF
         doc.build(story)
+
+    def gen_analysis(self):
+        # Construct the path to your .yaml file using root_path
+        yaml_file = os.path.join(self.root_path, 'config.yaml')
+
+        # Load data from the .yaml file
+        with open(yaml_file, 'r') as file:
+            data = yaml.load(file, Loader=yaml.FullLoader)
+
+        # Create the results directory
+        results_directory = os.path.join(self.root_path, "analysis_results")
+
+        # Check if the "analysis_results" folder exists, and create it if it doesn't
+        if not os.path.exists(results_directory):
+            os.makedirs(results_directory)
+
+        # Initialize an empty DataFrame to store results
+        results_df = pd.DataFrame()
+
+        # Perform analysis based on characterization
+        for dataset in data['devices']:
+            characterization = dataset['characterization']
+
+            if characterization in ['Insertion Loss (dB/cm)', 'Insertion Loss (dB/device)']:
+                cutback_results_df = self.analyze_cutback(dataset, results_directory)
+                results_df = pd.concat([results_df, cutback_results_df], ignore_index=True)
+            elif characterization == 'Bragg Drift (-nm)':
+                bragg_results_df = self.analyze_bragg(dataset, results_directory)
+                results_df = pd.concat([results_df, bragg_results_df], ignore_index=True)
+            elif characterization == 'Group Index':
+                gindex_results_df = self.analyze_gIndex(dataset, results_directory)
+                results_df = pd.concat([results_df, gindex_results_df], ignore_index=True)
+            else:
+                print(f"Unknown characterization type: {characterization}")
+
+        self.pdfReport(results_directory, results_df)
+
+        return results_df
