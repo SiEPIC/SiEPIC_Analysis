@@ -10,11 +10,13 @@ Example:    Application of SiEPIC_AP analysis functions
 """
 #%%
 import sys
+import io
 sys.path.append(r'D:\Academics\PyCharmProjects')  # Add the directory to sys.path
 import siepic_analysis_package as siap
 import matplotlib.pyplot as plt
 import matplotlib, os
 import numpy as np
+import pandas as pd
 
 class DirectionalCoupler:
     def __init__(self, fname_data, device_prefix, port_thru, port_drop, device_suffix,
@@ -37,6 +39,8 @@ class DirectionalCoupler:
         self.period = []
         self.WL = []
         self.BW = []
+        self.df_figures = pd.DataFrame()
+
 
     def getDeviceParameter(self, deviceID, devicePrefix, deviceSuffix=''):
         """Find the variable parameter of a device based on the ID
@@ -77,7 +81,7 @@ class DirectionalCoupler:
         return self.devices, self.period, self.WL, self.BW
 
     def plot_devices(self):
-        plt.figure()
+        plt.figure(figsize=(10, 6))
         for device in self.devices:
             label = 'Period = ' + str(self.getDeviceParameter(device.deviceID, self.device_prefix, self.device_suffix)) + ' nm'
             plt.plot(device.wavl, device.pwr[self.port_drop], label=label)
@@ -93,7 +97,18 @@ class DirectionalCoupler:
         plt.savefig(pdf_path_devices_raw, format='pdf')
         # plt.show()  # Display graph
 
-        plt.figure()
+        # Save the Matplotlib figure to a BytesIO object
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png')
+        img_buffer.seek(0)
+
+        # Directly append the figure information to the existing DataFrame
+        self.df_figures = self.df_figures._append(
+            {'Name': f'{self.name}_{self.pol}{self.wavl}_raw', 'Figure': img_buffer},
+            ignore_index=True
+        )
+
+        plt.figure(figsize=(10, 6))
         for device in self.devices:
             label = 'Period = ' + str(self.getDeviceParameter(device.deviceID, self.device_prefix, self.device_suffix)) + ' nm'
             plt.plot(device.wavl, device.dropCalib, label=label)
@@ -109,9 +124,19 @@ class DirectionalCoupler:
         plt.savefig(pdf_path_devices_calib, format='pdf')
         # plt.show()  # Display graph
 
+        # Save the Matplotlib figure to a BytesIO object
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png')
+        img_buffer.seek(0)
+
+        # Directly append the figure information to the existing DataFrame
+        self.df_figures = self.df_figures._append(
+            {'Name': f'{self.name}_{self.pol}{self.wavl}_calib', 'Figure': img_buffer},
+            ignore_index=True
+        )
 
     def plot_analysis_results(self):
-        fig, ax1 = plt.subplots()
+        fig, ax1 = plt.subplots(figsize=(10, 6))
 
         ax1.scatter(self.period, self.WL, color='blue')
         ax1.set_xlabel('Grating period [nm]')
@@ -131,6 +156,17 @@ class DirectionalCoupler:
         plt.savefig(pdf_path_analysis, format='pdf')
         # plt.show()  # Display graph
 
+        # Save the Matplotlib figure to a BytesIO object
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png')
+        img_buffer.seek(0)
+
+        # Directly append the figure information to the existing DataFrame
+        self.df_figures = self.df_figures._append(
+            {'Name': f'{self.name}_{self.pol}{self.wavl}_central', 'Figure': img_buffer},
+            ignore_index=True
+        )
+
     def overlay_simulation_data(self, target_wavelength, sim_label = 'Simulation (SiO2 Clad)'):
         simulation_period_sio2 = [313, 315, 317, 319, 321, 323]
         simulation_wavl_sio2 = [1536.64, 1542.24, 1547.85, 1553.45, 1559.06, 1564.56]
@@ -144,7 +180,7 @@ class DirectionalCoupler:
         print(f"Simulation period at {target_wavelength} nm: {simulation_period_at_target_sim} nm")
         print(f"Experimental period at {target_wavelength} nm: {experimental_period_at_target_exp} nm")
 
-        plt.figure()
+        plt.figure(figsize=(10, 6))
         plt.scatter(self.period, self.WL, color='r', marker='x', label='Experiment')
         plt.scatter(simulation_period_sio2, simulation_wavl_sio2, color='b', marker='o', label=sim_label)
 
@@ -174,8 +210,8 @@ class DirectionalCoupler:
         exp_wavelength_fit = exp_poly_func(common_wavelengths)
         sim_wavelength_fit = sim_poly_func(common_wavelengths)
 
-        # Calculate the absolute differences between the fit lines
-        differences = np.abs(exp_wavelength_fit - sim_wavelength_fit)
+        # Calculate the differences between the fit lines
+        differences = exp_wavelength_fit - sim_wavelength_fit
 
         # Find the average difference
         average_difference = np.mean(differences)
@@ -187,8 +223,19 @@ class DirectionalCoupler:
         plt.savefig(pdf_path_analysis_WL, format='pdf')
         # plt.show()  # Display graph
 
-        return average_difference
+        # Save the Matplotlib figure to a BytesIO object
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png')
+        img_buffer.seek(0)
 
+        # Directly append the figure information to the existing DataFrame
+        self.df_figures = self.df_figures._append(
+            {'Name': f'{self.name}_{self.pol}{self.wavl}_overlay', 'Figure': img_buffer},
+            ignore_index=True
+        )
+
+        # Return the average difference and the combined DataFrame
+        return average_difference
     def saveGraph(self):
         """
         Save a graph as PDF files in a directory based on the `self.name` attribute.

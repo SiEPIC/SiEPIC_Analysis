@@ -4,7 +4,7 @@ import pandas as pd
 
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, PageBreak, Image
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 from datetime import datetime
@@ -45,18 +45,43 @@ class Execute:
         port = dataset['port']
 
         # Create an instance of the Device class (Assuming you have a Device class)
-        device = Device(wavl, pol, self.root_path, results_directory, files_path, target_prefix, target_suffix, port, name, characterization)
+        device = Device(wavl=wavl, pol=pol,
+                        root_path=self.root_path,
+                        main_script_directory=results_directory,
+                        files_path=files_path,
+                        target_prefix=target_prefix,
+                        target_suffix=target_suffix,
+                        port=port, name=name,
+                        characterization=characterization)
 
-        # Call the execute method to perform the analysis
-        cutback_value, cutback_error = device.execute(target_wavelength=wavl)
+        # Load data
+        wavelengths_file, channel_pwr = device.loadData()
+
+        # Process data
+        lengths_cm, lengths_cm_sorted, lengths_um, input_to_function = device.process_data(wavelengths_file,
+                                                                                           channel_pwr)
+        separated_data = device.getSets(input_to_function, lengths_um)
+
+        # Call the graphRaw method
+        figure_data_raw, df_figures_raw = device.graphRaw(separated_data)
+
+        # Extract power arrays and wavelength data
+        power_arrays, wavelength_data = device.getArrays(input_to_function, lengths_um)
+
+        # Calculate slopes
+        slopes = device.getSlopes(power_arrays, lengths_cm_sorted, wavelength_data, target_wavelength=wavl)
+
+        # Call the graphCutback method
+        cutback_value, cutback_error, df_figures_cutback = device.graphCutback(wavl, wavelength_data, slopes)
+
+        # Combine df_figures_raw and df_figures_cutback
+        df_figures_combined = pd.concat([df_figures_raw, df_figures_cutback], ignore_index=True)
 
         # Initialize results list for this analysis
         self.results_list = []
 
-        characterization = dataset['characterization']
-
         # Append the results to the list
-        result_entry = {'Name': name, 'Wavelength': wavl, 'Polarization': pol, 'Data': cutback_value,
+        result_entry = {'Name': name, 'Wavelength': f'{wavl}nm', 'Polarization': pol, 'Data': cutback_value,
                         'Error': cutback_error, 'Characterization': characterization}
         self.results_list.append(result_entry)
 
@@ -67,7 +92,7 @@ class Execute:
         results_df['Data'] = results_df['Data'].round(2)
         results_df['Error'] = results_df['Error'].round(2)
 
-        return results_df
+        return results_df, df_figures_combined
 
     def analyze_bragg(self, dataset, results_directory):
         # results_directory = os.path.join(self.root_path, "analysis_results")
@@ -117,7 +142,7 @@ class Execute:
         characterization = dataset['characterization']
 
         # Append the results to the list
-        result_entry = {'Name': name, 'Wavelength': wavl, 'Polarization': pol, 'Data': bragg_drift,
+        result_entry = {'Name': name, 'Wavelength': f'{wavl}nm', 'Polarization': pol, 'Data': bragg_drift,
                         'Error': 'N/A', 'Characterization': characterization}
         self.results_list.append(result_entry)
 
@@ -127,7 +152,9 @@ class Execute:
         # Round the 'Cutback Value' and 'Error' columns to two decimal places in the DataFrame
         results_df['Data'] = results_df['Data'].round(2)
 
-        return results_df
+        df_figures = dc.df_figures
+
+        return results_df, df_figures
 
     def analyze_gIndex(self, dataset, results_directory):
         # results_directory = os.path.join(self.root_path, "analysis_results")
@@ -156,7 +183,7 @@ class Execute:
 
         group_index = GroupIndex(directory_path=files_path,
                                  wavl=wavl,
-                                 pol = pol,
+                                 pol=pol,
                                  device_prefix=device_prefix,
                                  device_suffix=device_suffix,
                                  port_cross=port_cross,
@@ -175,7 +202,7 @@ class Execute:
         characterization = dataset['characterization']
 
         # Append the results to the list
-        result_entry = {'Name': name, 'Wavelength': wavl, 'Polarization': pol, 'Data': gindex,
+        result_entry = {'Name': name, 'Wavelength': f'{wavl} nm', 'Polarization': pol, 'Data': gindex,
                         'Error': gindexError, 'Characterization': characterization}
         self.results_list.append(result_entry)
 
@@ -186,9 +213,11 @@ class Execute:
         results_df['Data'] = results_df['Data'].round(2)
         results_df['Error'] = results_df['Error'].round(2)
 
-        return results_df
+        df_figures = group_index.df_figures
 
-    def pdfReport(self, results_directory, results_df):
+        return results_df, df_figures
+
+    def pdfReport(self, results_directory, results_df, df_figures):
         # Prompt user for chipname input
         chipname = input("Enter chip name: ")
 
@@ -208,8 +237,8 @@ class Execute:
         # Create the full path for the PDF file including the results_directory
         pdf_path = os.path.join(results_directory, f"{chipname}_analysis_report.pdf")
 
-        # Create a PDF document
-        doc = SimpleDocTemplate(pdf_path, pagesize=letter)
+        # Create a PDF document with a smaller top margin
+        doc = SimpleDocTemplate(pdf_path, pagesize=letter)  # You can adjust the second parameter for the desired top margin
 
         # Create a story to add elements to the PDF
         story = []
@@ -254,6 +283,25 @@ class Execute:
 
         story.append(table)
 
+        # Add a page break before adding the figure
+        story.append(PageBreak())
+
+        # Add the figures to the PDF, two figures per page
+        figures_per_page = 2
+        for i, row in df_figures.iterrows():
+            # Access the figure and other information
+            figure = row['Figure']
+
+            # Convert BytesIO to Image
+            img = Image(figure, width=7.2 * inch, height=4.32 * inch)
+
+            # Add the image to the story
+            story.append(img)
+
+            # If the current figure is the last one on the page, add a page break
+            if (i + 1) % figures_per_page == 0:
+                story.append(PageBreak())
+
         # Build the PDF
         doc.build(story)
 
@@ -275,22 +323,29 @@ class Execute:
         # Initialize an empty DataFrame to store results
         results_df = pd.DataFrame()
 
+        # Initialize an empty DataFrame to store figures
+        df_figures = pd.DataFrame()
+
         # Perform analysis based on characterization
         for dataset in data['devices']:
             characterization = dataset['characterization']
 
             if characterization in ['Insertion Loss (dB/cm)', 'Insertion Loss (dB/device)']:
-                cutback_results_df = self.analyze_cutback(dataset, results_directory)
+                cutback_results_df, df_figures_cutback = self.analyze_cutback(dataset, results_directory)
                 results_df = pd.concat([results_df, cutback_results_df], ignore_index=True)
-            elif characterization == 'Bragg Drift (-nm)':
-                bragg_results_df = self.analyze_bragg(dataset, results_directory)
+                df_figures = pd.concat([df_figures, df_figures_cutback], ignore_index=True)
+            elif characterization == 'Bragg Drift (nm)':
+                bragg_results_df, df_figures_bragg = self.analyze_bragg(dataset, results_directory)
                 results_df = pd.concat([results_df, bragg_results_df], ignore_index=True)
+                df_figures = pd.concat([df_figures, df_figures_bragg], ignore_index=True)
             elif characterization == 'Group Index':
-                gindex_results_df = self.analyze_gIndex(dataset, results_directory)
+                gindex_results_df, df_figures_gindex = self.analyze_gIndex(dataset, results_directory)
                 results_df = pd.concat([results_df, gindex_results_df], ignore_index=True)
+                df_figures = pd.concat([df_figures, df_figures_gindex], ignore_index=True)
+
             else:
                 print(f"Unknown characterization type: {characterization}")
 
-        self.pdfReport(results_directory, results_df)
+        self.pdfReport(results_directory, results_df, df_figures)
 
         return results_df

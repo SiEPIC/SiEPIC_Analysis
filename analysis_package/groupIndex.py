@@ -5,6 +5,8 @@ import siepic_analysis_package as siap
 import matplotlib.pyplot as plt
 import matplotlib, os
 import numpy as np
+import io
+import pandas as pd
 from scipy.interpolate import interp1d
 from scipy.signal import find_peaks
 
@@ -28,6 +30,7 @@ class GroupIndex:
         self.devices = []
         self.name = name
         self.main_script_directory = main_script_directory
+        self.df_figures = pd.DataFrame()
 
     def _get_device_parameter(self, deviceID):
         parameter = float(deviceID.removeprefix(self.device_prefix).removesuffix(self.device_suffix).replace('p', '.'))
@@ -214,10 +217,23 @@ class GroupIndex:
         plt.savefig(pdf_path_gindex, format='pdf')
         # plt.show()  # Display the plot
 
+        # Save the Matplotlib figure to a BytesIO object
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png')
+        img_buffer.seek(0)
+
+        # Directly append the figure information to the existing DataFrame
+        self.df_figures = self.df_figures._append(
+            {'Name': f'{self.name}_{self.pol}{self.wavl}_gsim', 'Figure': img_buffer},
+            ignore_index=True
+        )
+
         return gindex, gindexError
 
     def sort_devices_by_length(self):
         self.devices = sorted(self.devices, key=lambda d: d.length)
+
+    from scipy.interpolate import interp1d
 
     def plot_coupling_coefficient_contour(self):
         """
@@ -227,21 +243,31 @@ class GroupIndex:
         - None
         """
         # Extracting wavelength and device length data
-        ng_wavl = np.array([device.ng_wavl[:10] for device in self.devices])
-        device_lengths = np.array([device.length for device in self.devices])
+        ng_wavl = [device.ng_wavl[:11] for device in self.devices]
+        device_lengths = [device.length for device in self.devices]
 
         # Creating a common wavelength grid
         common_ng_wavl = np.unique(np.concatenate(ng_wavl))
+
+        # Sort the common_ng_wavl array
+        common_ng_wavl.sort()
 
         # Creating meshgrid for wavelength and device length
         X, Y = np.meshgrid(common_ng_wavl, device_lengths)
 
         # Creating an empty 2D array for coupling coefficient data
-        Z = np.empty_like(X)
+        Z = np.empty((len(self.devices), len(common_ng_wavl)))
 
         # Populating the 2D array with coupling coefficient data
-        for i, device in enumerate(self.devices):
-            interp_func = interp1d(device.ng_wavl, device.kappa, kind='linear', fill_value='extrapolate')
+        for i, device_ng_wavl in enumerate(ng_wavl):
+            # Take a specific wavelength from device_ng_wavl
+            wavelength_at_i = device_ng_wavl[0]
+
+            # Sort ng_wavl and kappa arrays before interpolation
+            sorted_indices = np.argsort(device_ng_wavl)
+            interp_func = interp1d(np.array(device_ng_wavl)[sorted_indices],
+                                   np.array(self.devices[i].kappa)[sorted_indices], kind='linear',
+                                   fill_value='extrapolate')
             Z[i, :] = interp_func(common_ng_wavl)
 
         fig, ax = plt.subplots(figsize=(10, 6))
@@ -260,7 +286,19 @@ class GroupIndex:
         # Displaying the plot
         pdf_path_gindex, pdf_path_contour = self.saveGraph()
         plt.savefig(pdf_path_contour, format='pdf')
+
         # plt.show()  # Display the plot
+
+        # Save the Matplotlib figure to a BytesIO object
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png')
+        img_buffer.seek(0)
+
+        # Directly append the figure information to the existing DataFrame
+        self.df_figures = self.df_figures._append(
+            {'Name': f'{self.name}_{self.pol}{self.wavl}_coup', 'Figure': img_buffer},
+            ignore_index=True
+        )
 
     def saveGraph(self):
         """

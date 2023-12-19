@@ -1,4 +1,8 @@
+import io
 import sys
+
+import pandas as pd
+
 sys.path.append(r'D:\Academics\PyCharmProjects')  # Add the directory to sys.path
 import siepic_analysis_package as siap
 import os  # Import the os module
@@ -19,6 +23,8 @@ class Device:
         self.port = port
         self.name = name
         self.characterization = characterization
+        self.figures_df = pd.DataFrame(columns=['Name', 'Figure'])
+
 
     def get_waveguide_length(self, device_id):
         """
@@ -126,12 +132,6 @@ class Device:
         # Create the final data_sets dictionary with sorted data
         data_sets = {str(key): data for key, data in sorted_data}
 
-        # Print the separated data for debug
-        # for key, data in data_sets.items():
-            # print(f"Key: {key}")
-            # print(f"Wavelength: {data['wavelength']}")
-            # print(f"Power: {data['power']}")
-            # print()  # Just for separating the sets visually
         return data_sets
 
     def graphRaw(self, separated_data):
@@ -177,6 +177,17 @@ class Device:
         pdf_path_raw, pdf_path_cutback = self.saveGraph()
         plt.savefig(pdf_path_raw, format='pdf')
         # plt.show()  # Display the combined graph
+
+        # Save the Matplotlib figure to a BytesIO object
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png')
+        img_buffer.seek(0)
+
+        # Convert the BytesIO object to a DataFrame
+        df_figures = pd.DataFrame([{'Name': f'{self.name}_{self.pol}{self.wavl}_1', 'Figure': img_buffer}])
+
+        # Return a dictionary containing the raw_cutback_img and other information
+        return {'Name': f'{self.name}_{self.pol}{self.wavl}_1', 'Figure': img_buffer}, df_figures
 
     def getArrays(self, input_to_function, lengths_um):
         """
@@ -330,7 +341,19 @@ class Device:
         # Show the plot
         # plt.show()
 
-        return slope_at_wavl, cutback_error
+        # Save the Matplotlib figure to a BytesIO object
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png')
+        img_buffer.seek(0)
+
+        # Convert the BytesIO object to a DataFrame
+        df_figures = pd.DataFrame([{'Name': f'{self.name}_{self.pol}{self.wavl}_2', 'Figure': img_buffer}])
+
+        # Add the figure to the existing figures DataFrame
+        self.figures_df = pd.concat([self.figures_df, df_figures], ignore_index=True)
+
+        # Return a dictionary containing the cutback loss and other information
+        return slope_at_wavl, cutback_error, df_figures
 
     def saveGraph(self):
         """
@@ -354,30 +377,3 @@ class Device:
 
         # Now, you can save your PDFs to pdf_path_raw and pdf_path_cutback
         return pdf_path_raw, pdf_path_cutback
-
-    def execute(self, target_wavelength=None):
-        # Load data
-        wavelengths_file, channel_pwr = self.loadData()
-
-        # Process data
-        lengths_cm, lengths_cm_sorted, lengths_um, input_to_function = self.process_data(wavelengths_file, channel_pwr)
-
-        # Call the getSets method
-        separated_data = self.getSets(input_to_function, lengths_um)
-
-        # Call the graphRaw method on the device object
-        self.graphRaw(separated_data)
-
-        # Call the getArrays method
-        power_arrays, wavelength_data = self.getArrays(input_to_function, lengths_um)
-
-        # Call the getSlopes method
-        if target_wavelength is not None:
-            slopes = self.getSlopes(power_arrays, lengths_cm_sorted, wavelength_data, target_wavelength)
-
-            # Call the graphCutback method
-            cutback_value, cutback_error = self.graphCutback(self.wavl, wavelength_data, slopes)
-        else:
-            print("Target wavelength not specified. Skipping getSlopes and graphCutback.")
-
-        return cutback_value, cutback_error
