@@ -18,23 +18,6 @@ class Execute:
         self.results_list = []
 
     def analyze_cutback(self, dataset, results_directory):
-        # results_directory = os.path.join(self.root_path, "analysis_results")
-
-        # Check if the "analysis_results" folder exists, and create it if it doesn't
-        # if not os.path.exists(results_directory):
-            # os.makedirs(results_directory)
-
-        # Construct the path to your .yaml file using root_path
-        # yaml_file = os.path.join(self.root_path, 'config.yaml')
-
-        # Load data from the .yaml file
-        # with open(yaml_file, 'r') as file:
-            # data = yaml.load(file, Loader=yaml.FullLoader)
-
-        # Iterate through the data sets and perform the analysis
-        # for dataset in data['devices']:
-
-
         name = dataset['name']
         wavl = dataset['wavelength']
         pol = dataset['polarization']
@@ -95,21 +78,6 @@ class Execute:
         return results_df, df_figures_combined
 
     def analyze_bragg(self, dataset, results_directory):
-        # results_directory = os.path.join(self.root_path, "analysis_results")
-
-        # Check if the "analysis_results" folder exists, and create it if it doesn't
-        # if not os.path.exists(results_directory):
-        # os.makedirs(results_directory)
-
-        # Construct the path to your .yaml file using root_path
-        # yaml_file = os.path.join(self.root_path, 'braggconfig.yaml')
-
-        # Load data from the .yaml file
-        # with open(yaml_file, 'r') as file:
-        # data = yaml.load(file, Loader=yaml.FullLoader)
-
-        # Iterate through the data sets and perform the analysis
-        # for dataset in data['devices']:
         name = dataset['name']
         wavl = dataset['wavelength']
         pol = dataset['polarization']
@@ -157,21 +125,6 @@ class Execute:
         return results_df, df_figures
 
     def analyze_gIndex(self, dataset, results_directory):
-        # results_directory = os.path.join(self.root_path, "analysis_results")
-
-        # Check if the "analysis_results" folder exists, and create it if it doesn't
-        # if not os.path.exists(results_directory):
-        # os.makedirs(results_directory)
-
-        # Construct the path to your .yaml file using root_path
-        # yaml_file = os.path.join(self.root_path, 'groupIndexconfig.yaml')
-
-        # Load data from the .yaml file
-        # with open(yaml_file, 'r') as file:
-        # data = yaml.load(file, Loader=yaml.FullLoader)
-
-        # Iterate through the data sets and perform the analysis
-        # for dataset in data['devices']:
         name = dataset['name']
         wavl = dataset['wavelength']
         pol = dataset['polarization']
