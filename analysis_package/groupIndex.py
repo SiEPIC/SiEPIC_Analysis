@@ -33,8 +33,15 @@ class GroupIndex:
         self.df_figures = pd.DataFrame()
 
     def _get_device_parameter(self, deviceID):
-        parameter = float(deviceID.removeprefix(self.device_prefix).removesuffix(self.device_suffix).replace('p', '.'))
-        return parameter
+        try:
+            start_index = deviceID.index(self.device_prefix) + len(self.device_prefix)
+            end_index = deviceID.index(self.device_suffix, start_index)
+            parameter = float(deviceID[start_index:end_index])
+            return parameter
+
+        except ValueError:
+            # Handle the case where prefix or suffix is not found
+            return None  # Return None to indicate failure
 
     def _extract_periods(self, wavelength, transmission, min_prominence=.25, plot=False):
         # Subtract the mean of the signal
