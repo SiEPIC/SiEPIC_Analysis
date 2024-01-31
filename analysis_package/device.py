@@ -36,8 +36,16 @@ class Device:
         Returns:
         float: The waveguide length extracted from the device ID.
         """
-        return float(device_id.removeprefix(self.target_prefix).removesuffix(self.target_suffix))
+        try:
+            start_index = device_id.index(self.target_prefix) + len(self.target_prefix)
+            end_index = device_id.index(self.target_suffix, start_index)
+            device_value = float(device_id[start_index:end_index])
+            return device_value
 
+        except ValueError:
+            # Handle the case where prefix or suffix is not found
+            return None  # Return None to indicate failure
+            
     def loadData(self):
         """
         Load data from files into dataframes.
