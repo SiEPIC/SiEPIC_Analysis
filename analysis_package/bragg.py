@@ -57,9 +57,9 @@ class DirectionalCoupler:
             parameter (float): variable parameter of the device (unit based on whats in the ID)
         """
         try:
-            start_index = device_id.index(self.target_prefix) + len(self.target_prefix)
-            end_index = device_id.index(self.target_suffix, start_index)
-            parameter = float(device_id[start_index:end_index])
+            start_index = deviceID.index(self.devicePrefix) + len(self.devicePrefix)
+            end_index = deviceID.index(self.deviceSuffix, start_index)
+            parameter = float(deviceID[start_index:end_index])
             return parameter
 
         except ValueError:
