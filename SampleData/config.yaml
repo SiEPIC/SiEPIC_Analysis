@@ -16,7 +16,7 @@ devices:
   wavelength: 1550
   characterization: "Insertion Loss (dB/cm)"
   polarization: TE
-  target_prefix: "PCM_StraightWG"
+  target_prefix: "PCM_StraightWGloss"
   target_suffix: "TE"
   port: 1
 
@@ -26,7 +26,7 @@ devices:
   polarization: TE
   target_prefix: "PCM_SWGloss"
   target_suffix: "TE"
-  port: 0
+  port: 1
 
 - name: PCM_YBranch
   characterization: "Insertion Loss (dB/device)"
