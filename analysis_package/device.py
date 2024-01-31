@@ -63,7 +63,7 @@ class Device:
         channel_pwr = []
 
         for root, dirs, files in os.walk(self.files_path):
-            if os.path.basename(root).startswith(self.target_prefix):
+            if os.path.basename(root).startswith(self.target_prefix) and os.path.basename(root).endswith(self.target_suffix):
                 for file in files:
                     if file.endswith(".csv"):
                         channel = siap.analysis.processCSV(root+r'/'+file)
