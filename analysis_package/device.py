@@ -11,8 +11,10 @@ import matplotlib
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 
+
 class Device:
-    def __init__(self, wavl, pol, root_path, main_script_directory, files_path, target_prefix, target_suffix, port, name, characterization):
+    def __init__(self, wavl, pol, root_path, main_script_directory, files_path, target_prefix, target_suffix, port,
+                 name, characterization):
         self.wavl = wavl
         self.pol = pol
         self.root_path = root_path
@@ -25,7 +27,6 @@ class Device:
         self.characterization = characterization
         self.figures_df = pd.DataFrame(columns=['Name', 'Figure'])
 
-
     def get_waveguide_length(self, device_id):
         """
         Extract the waveguide length from a device ID by removing specified prefixes and suffixes.
@@ -36,7 +37,15 @@ class Device:
         Returns:
         float: The waveguide length extracted from the device ID.
         """
-        return float(device_id.removeprefix(self.target_prefix).removesuffix(self.target_suffix))
+        try:
+            start_index = device_id.index(self.target_prefix) + len(self.target_prefix)
+            end_index = device_id.index(self.target_suffix, start_index)
+            device_value = float(device_id[start_index:end_index])
+            return device_value
+
+        except ValueError:
+            # Handle the case where prefix or suffix is not found
+            return None  # Return None to indicate failure
 
     def loadData(self):
         """
@@ -55,10 +64,11 @@ class Device:
         channel_pwr = []
 
         for root, dirs, files in os.walk(self.files_path):
-            if os.path.basename(root).startswith(self.target_prefix):
+            if os.path.basename(root).startswith(self.target_prefix) and os.path.basename(root).endswith(
+                    self.target_suffix):
                 for file in files:
                     if file.endswith(".csv"):
-                        channel = siap.analysis.processCSV(root+r'/'+file)
+                        channel = siap.analysis.processCSV(root + r'/' + file)
                         channel_pwr.append(channel)
                         wavelengths_file.append(self.get_waveguide_length(channel.deviceID))
 
@@ -267,8 +277,8 @@ class Device:
 
             # Check if the current iteration corresponds to target wavelength
             # if i == index_target:
-                # x_target = x_values
-                # y_target = y_values
+            # x_target = x_values
+            # y_target = y_values
 
         # Print the slope at target wavelength
         # print(f"Slope at {target_wavelength} nm: {slopes[index_target]}")
@@ -291,14 +301,28 @@ class Device:
         Returns:
         float: The cutback loss at the specified target wavelength.
         """
+        # Convert slopes to a NumPy array
+        slopes = np.array(slopes)
+
+        # Find indices of non-NaN values in slopes
+        valid_indices = np.where(~np.isnan(slopes))[0]
+
+        print("slopes type:", type(slopes))
+        print("valid_indices type:", type(valid_indices))
+        print("valid_indices shape:", valid_indices.shape)
+
+        # Filter out NaN values from slopes and wavelength_data
+        filtered_wavelength_data = wavelength_data[valid_indices]
+        filtered_slopes = slopes[valid_indices]
+
         # Fit a polynomial of degree 3 to your data
-        coefficients3 = np.polyfit(wavelength_data, slopes, degree)
+        coefficients3 = np.polyfit(filtered_wavelength_data, filtered_slopes, degree)
 
         # Create a polynomial function from the coefficients
         poly_func = np.poly1d(coefficients3)
 
         # Generate x values for the line of best fit
-        x_fit = np.linspace(wavelength_data.min(), wavelength_data.max(), 1000)
+        x_fit = np.linspace(filtered_wavelength_data.min(), filtered_wavelength_data.max(), 1000)
 
         # Calculate the corresponding y values using the polynomial function
         y_fit = poly_func(x_fit)
@@ -308,11 +332,12 @@ class Device:
         slope_at_wavl = np.abs(poly_func(target_wavelength))
 
         # Calculate the error bars (+/-)
-        error = np.abs(slopes - poly_func(wavelength_data))
+        error = np.abs(filtered_slopes - poly_func(filtered_wavelength_data))
 
         # Create a plot of wavelength vs. slope
         plt.figure(figsize=(10, 6))
-        plt.plot(wavelength_data, np.abs(slopes), color='blue', marker='', linestyle='-', label='Insertion loss (raw)')
+        plt.plot(filtered_wavelength_data, np.abs(filtered_slopes), color='blue', marker='', linestyle='-',
+                 label='Insertion loss (raw)')
         plt.plot(x_fit, np.abs(y_fit), color='red', linestyle='-', label='Insertion loss (fit)', linewidth=3)
 
         # Plot labels
@@ -331,9 +356,9 @@ class Device:
 
         # Print the cutback loss at the target wavelength
         print(
-            f'The insertion loss at wavelength = {target_wavelength} is {slope_at_wavl} +/- {error[wavelength_data == target_wavelength][0]} for {self.name}_{self.pol}{self.wavl}')  # Updated naming
+            f'The insertion loss at wavelength = {target_wavelength} is {slope_at_wavl} +/- {error[filtered_wavelength_data == target_wavelength][0]} for {self.name}_{self.pol}{self.wavl}')  # Updated naming
 
-        cutback_error = error[wavelength_data == target_wavelength][0]
+        cutback_error = error[filtered_wavelength_data == target_wavelength][0]
 
         pdf_path_raw, pdf_path_cutback = self.saveGraph()
         plt.savefig(pdf_path_cutback, format='pdf')

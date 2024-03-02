@@ -8,6 +8,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, 
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 from datetime import datetime
+from PyPDF2 import PdfWriter, PdfReader
 
 from analysis_package import Device
 from analysis_package.bragg import DirectionalCoupler
@@ -16,29 +17,13 @@ class Execute:
     def __init__(self, root_path):
         self.root_path = root_path
         self.results_list = []
+        self.all_pdf_paths = []
 
     def analyze_cutback(self, dataset, results_directory):
-        # results_directory = os.path.join(self.root_path, "analysis_results")
-
-        # Check if the "analysis_results" folder exists, and create it if it doesn't
-        # if not os.path.exists(results_directory):
-            # os.makedirs(results_directory)
-
-        # Construct the path to your .yaml file using root_path
-        # yaml_file = os.path.join(self.root_path, 'config.yaml')
-
-        # Load data from the .yaml file
-        # with open(yaml_file, 'r') as file:
-            # data = yaml.load(file, Loader=yaml.FullLoader)
-
-        # Iterate through the data sets and perform the analysis
-        # for dataset in data['devices']:
-
-
         name = dataset['name']
         wavl = dataset['wavelength']
         pol = dataset['polarization']
-        files_path = os.path.join(self.root_path, f"{wavl}_{pol}")
+        files_path = self.root_path
         target_prefix = dataset['target_prefix']
         target_suffix = dataset['target_suffix']
         characterization = dataset['characterization']
@@ -95,21 +80,6 @@ class Execute:
         return results_df, df_figures_combined
 
     def analyze_bragg(self, dataset, results_directory):
-        # results_directory = os.path.join(self.root_path, "analysis_results")
-
-        # Check if the "analysis_results" folder exists, and create it if it doesn't
-        # if not os.path.exists(results_directory):
-        # os.makedirs(results_directory)
-
-        # Construct the path to your .yaml file using root_path
-        # yaml_file = os.path.join(self.root_path, 'braggconfig.yaml')
-
-        # Load data from the .yaml file
-        # with open(yaml_file, 'r') as file:
-        # data = yaml.load(file, Loader=yaml.FullLoader)
-
-        # Iterate through the data sets and perform the analysis
-        # for dataset in data['devices']:
         name = dataset['name']
         wavl = dataset['wavelength']
         pol = dataset['polarization']
@@ -157,21 +127,6 @@ class Execute:
         return results_df, df_figures
 
     def analyze_gIndex(self, dataset, results_directory):
-        # results_directory = os.path.join(self.root_path, "analysis_results")
-
-        # Check if the "analysis_results" folder exists, and create it if it doesn't
-        # if not os.path.exists(results_directory):
-        # os.makedirs(results_directory)
-
-        # Construct the path to your .yaml file using root_path
-        # yaml_file = os.path.join(self.root_path, 'groupIndexconfig.yaml')
-
-        # Load data from the .yaml file
-        # with open(yaml_file, 'r') as file:
-        # data = yaml.load(file, Loader=yaml.FullLoader)
-
-        # Iterate through the data sets and perform the analysis
-        # for dataset in data['devices']:
         name = dataset['name']
         wavl = dataset['wavelength']
         pol = dataset['polarization']
@@ -222,17 +177,17 @@ class Execute:
         chipname = input("Enter chip name: ")
 
         # Prompt user for measurement date input
-        date_str = input("Enter measurement date (YYYY-MM-DD): ")
+        #date_str = input("Enter measurement date (YYYY-MM-DD): ")
 
         # Validate and convert the date input
-        try:
-            date = datetime.strptime(date_str, "%Y-%m-%d").strftime("%B %d, %Y")
-        except ValueError:
-            print("Invalid date format. Please use YYYY-MM-DD.")
-            return
+        #try:
+            #date = datetime.strptime(date_str, "%Y-%m-%d").strftime("%B %d, %Y")
+        #except ValueError:
+            #print("Invalid date format. Please use YYYY-MM-DD.")
+            #return
 
         # Prompt user for process input
-        process = input("Enter process: ")
+        # process = input("Enter process: ")
 
         # Create the full path for the PDF file including the results_directory
         pdf_path = os.path.join(results_directory, f"{chipname}_analysis_report.pdf")
@@ -251,8 +206,9 @@ class Execute:
         story.append(title_text)
 
         # Add a paragraph of text
-        paragraph = (f"<br/>Measurement date: {date} <br/><br/>"
-                     f"Process: {process}<br/><br/>")  # text paragraph
+        #paragraph = (f"<br/>Measurement date: {date} <br/><br/>"
+                     #f"Process: {process}<br/><br/>")  # text paragraph
+        paragraph = "text"
         paragraph_style = getSampleStyleSheet()["Normal"]
         paragraph_style.fontName = 'Times-Roman'
         paragraph_style.fontSize = 12  # Change font size to 12
@@ -305,6 +261,23 @@ class Execute:
         # Build the PDF
         doc.build(story)
 
+        # Return the path of the generated PDF
+        return pdf_path
+
+    def merge_pdfs(self, pdf_paths, output_path):
+        pdf_writer = PdfWriter()
+
+        for pdf_path in pdf_paths:
+            print(f"Processing PDF: {pdf_path}")  # Debugging statement
+            pdf_reader = PdfReader(pdf_path)
+            for page in pdf_reader.pages:
+                pdf_writer.add_page(page)
+
+        with open(output_path, 'wb') as out_pdf:
+            pdf_writer.write(out_pdf)
+
+        print("PDFs combined successfully.")
+
     def gen_analysis(self):
         # Construct the path to your .yaml file using root_path
         yaml_file = os.path.join(self.root_path, 'config.yaml')
@@ -313,8 +286,9 @@ class Execute:
         with open(yaml_file, 'r') as file:
             data = yaml.load(file, Loader=yaml.FullLoader)
 
-        # Create the results directory
-        results_directory = os.path.join(self.root_path, "analysis_results")
+        # Create the results directory in the parent directory of root_path
+        parent_directory = os.path.dirname(self.root_path)
+        results_directory = os.path.join(parent_directory, "presuffix_results")
 
         # Check if the "analysis_results" folder exists, and create it if it doesn't
         if not os.path.exists(results_directory):
@@ -342,10 +316,10 @@ class Execute:
                 gindex_results_df, df_figures_gindex = self.analyze_gIndex(dataset, results_directory)
                 results_df = pd.concat([results_df, gindex_results_df], ignore_index=True)
                 df_figures = pd.concat([df_figures, df_figures_gindex], ignore_index=True)
-
             else:
                 print(f"Unknown characterization type: {characterization}")
 
-        self.pdfReport(results_directory, results_df, df_figures)
+        # Generate PDF report and collect its path
+        report_path = self.pdfReport(results_directory, results_df, df_figures)
 
-        return results_df
+        return results_df, report_path
