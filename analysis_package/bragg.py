@@ -56,8 +56,15 @@ class DirectionalCoupler:
         Returns:
             parameter (float): variable parameter of the device (unit based on whats in the ID)
         """
-        parameter = float(deviceID.removeprefix(devicePrefix).removesuffix(deviceSuffix))
-        return parameter
+        try:
+            start_index = deviceID.index(self.devicePrefix) + len(self.devicePrefix)
+            end_index = deviceID.index(self.deviceSuffix, start_index)
+            parameter = float(deviceID[start_index:end_index])
+            return parameter
+
+        except ValueError:
+            # Handle the case where prefix or suffix is not found
+            return None  # Return None to indicate failure
 
     def process_files(self):
         for root, dirs, files in os.walk(self.fname_data):
