@@ -26,3 +26,4 @@ if __name__ == "__main__":
     # Combine the PDFs after all runs if needed
     combined_pdf_path = os.path.join(os.path.dirname(root_path), "RUNoFanalysis_results", "combined.pdf")
     analyzer_1.merge_pdfs(all_reports, combined_pdf_path)
+    # changes

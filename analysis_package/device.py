@@ -402,3 +402,4 @@ class Device:
 
         # Now, you can save your PDFs to pdf_path_raw and pdf_path_cutback
         return pdf_path_raw, pdf_path_cutback
+    # changes
