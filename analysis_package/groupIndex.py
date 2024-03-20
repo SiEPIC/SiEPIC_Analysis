@@ -1,9 +1,12 @@
-# -*- coding: utf-8 -*-
+import os
 import sys
-sys.path.append(r'D:\Academics\PyCharmProjects')  # Add the directory to sys.path
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(parent_dir)
 import siepic_analysis_package as siap
+
 import matplotlib.pyplot as plt
-import matplotlib, os
 import numpy as np
 import io
 import pandas as pd
@@ -33,15 +36,8 @@ class GroupIndex:
         self.df_figures = pd.DataFrame()
 
     def _get_device_parameter(self, deviceID):
-        try:
-            start_index = deviceID.index(self.device_prefix) + len(self.device_prefix)
-            end_index = deviceID.index(self.device_suffix, start_index)
-            parameter = float(deviceID[start_index:end_index])
-            return parameter
-
-        except ValueError:
-            # Handle the case where prefix or suffix is not found
-            return None  # Return None to indicate failure
+        parameter = float(deviceID.removeprefix(self.device_prefix).removesuffix(self.device_suffix).replace('p', '.'))
+        return parameter
 
     def _extract_periods(self, wavelength, transmission, min_prominence=.25, plot=False):
         # Subtract the mean of the signal
@@ -222,14 +218,12 @@ class GroupIndex:
 
         pdf_path_gindex, pdf_path_contour = self.saveGraph()
         plt.savefig(pdf_path_gindex, format='pdf')
-        # plt.show()  # Display the plot
+        # plt.show()
 
-        # Save the Matplotlib figure to a BytesIO object
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format='png')
         img_buffer.seek(0)
 
-        # Directly append the figure information to the existing DataFrame
         self.df_figures = self.df_figures._append(
             {'Name': f'{self.name}_{self.pol}{self.wavl}_gsim', 'Figure': img_buffer},
             ignore_index=True
@@ -239,8 +233,6 @@ class GroupIndex:
 
     def sort_devices_by_length(self):
         self.devices = sorted(self.devices, key=lambda d: d.length)
-
-    from scipy.interpolate import interp1d
 
     def plot_coupling_coefficient_contour(self):
         """
@@ -253,13 +245,9 @@ class GroupIndex:
         ng_wavl = [device.ng_wavl[:11] for device in self.devices]
         device_lengths = [device.length for device in self.devices]
 
-        # Creating a common wavelength grid
         common_ng_wavl = np.unique(np.concatenate(ng_wavl))
-
-        # Sort the common_ng_wavl array
         common_ng_wavl.sort()
 
-        # Creating meshgrid for wavelength and device length
         X, Y = np.meshgrid(common_ng_wavl, device_lengths)
 
         # Creating an empty 2D array for coupling coefficient data
@@ -287,21 +275,14 @@ class GroupIndex:
         ax.set_ylabel("Coupling Length [µm]")
         ax.set_title("Coupling Coefficient Contour Map (100 nm gap)")
 
-        # Adding a colorbar
         fig.colorbar(contour)
-
-        # Displaying the plot
         pdf_path_gindex, pdf_path_contour = self.saveGraph()
         plt.savefig(pdf_path_contour, format='pdf')
+        # plt.show()
 
-        # plt.show()  # Display the plot
-
-        # Save the Matplotlib figure to a BytesIO object
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format='png')
         img_buffer.seek(0)
-
-        # Directly append the figure information to the existing DataFrame
         self.df_figures = self.df_figures._append(
             {'Name': f'{self.name}_{self.pol}{self.wavl}_coup', 'Figure': img_buffer},
             ignore_index=True
@@ -319,13 +300,10 @@ class GroupIndex:
         - pdf_path_raw (str): The full path to the saved raw data PDF file.
         - pdf_path_cutback (str): The full path to the saved cutback data PDF file.
         """
-        # Create a directory based on self.name, self.pol, and self.wavl if it doesn't exist
         output_directory = os.path.join(self.main_script_directory, f"{self.name}_{self.pol}{self.wavl}")
         os.makedirs(output_directory, exist_ok=True)
 
-        # Combine the directory and the filename to get the full paths
         pdf_path_gindex = os.path.join(output_directory, f"{self.name}_{self.pol}{self.wavl}_gindex.pdf")
         pdf_path_contour = os.path.join(output_directory, f"{self.name}_{self.pol}{self.wavl}_contour.pdf")
 
-        # Now, you can save your PDFs
         return pdf_path_gindex, pdf_path_contour

@@ -1,11 +1,14 @@
-import io
+import os
 import sys
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(parent_dir)
+import siepic_analysis_package as siap
 
 import pandas as pd
 
-sys.path.append(r'D:\Academics\PyCharmProjects')  # Add the directory to sys.path
-import siepic_analysis_package as siap
-import os  # Import the os module
+import io
 import numpy as np
 import matplotlib
 import matplotlib.cm as cm
@@ -41,11 +44,11 @@ class Device:
             start_index = device_id.index(self.target_prefix) + len(self.target_prefix)
             end_index = device_id.index(self.target_suffix, start_index)
             device_value = float(device_id[start_index:end_index])
+
             return device_value
 
         except ValueError:
-            # Handle the case where prefix or suffix is not found
-            return None  # Return None to indicate failure
+            return None
 
     def loadData(self):
         """
@@ -64,14 +67,12 @@ class Device:
         channel_pwr = []
 
         for root, dirs, files in os.walk(self.files_path):
-            if os.path.basename(root).startswith(self.target_prefix) and os.path.basename(root).endswith(
-                    self.target_suffix):
+            if os.path.basename(root).startswith(self.target_prefix):
                 for file in files:
                     if file.endswith(".csv"):
                         channel = siap.analysis.processCSV(root + r'/' + file)
                         channel_pwr.append(channel)
                         wavelengths_file.append(self.get_waveguide_length(channel.deviceID))
-
         return wavelengths_file, channel_pwr
 
     def process_data(self, wavelengths_file, channel_pwr):
@@ -94,14 +95,11 @@ class Device:
         - input_to_function (list): An array of wavelength and power data for analysis.
         """
         if self.characterization == 'Insertion Loss (dB/cm)':
-            # Divide by 10000 to see the result in dB/cm
             lengths_cm = [i / 10000 for i in wavelengths_file]
         elif self.characterization == 'Insertion Loss (dB/device)':
             lengths_cm = [i for i in wavelengths_file]
 
-        # Sort lengths_cm from smallest to largest
         lengths_cm_sorted = sorted(lengths_cm)
-
         lengths_um = wavelengths_file
 
         input_to_function = []
@@ -111,35 +109,46 @@ class Device:
 
         return lengths_cm, lengths_cm_sorted, lengths_um, input_to_function
 
-    def getSets(self, input_to_function, lengths_um, num_arrays_per_dict=2):
+    def getSets(self, input_to_function, lengths_um, wavl_min=None, wavl_max=None):
         """
-        Separate input data into dictionaries, sorted by length.
+        Separate input data into dictionaries, sorted by length, truncating wavelengths and powers based on wavl_min and wavl_max.
 
         Args:
         input_to_function (list): Input data containing wavelength and power arrays.
         lengths_um (list): A list of lengths in micrometers.
-        num_arrays_per_dict (int): Number of arrays (wavelength and power) per dictionary. Default is 2.
+        wavl_min (float or None): Minimum wavelength to truncate data. Default is None.
+        wavl_max (float or None): Maximum wavelength to truncate data. Default is None.
 
         Returns:
         dict: A dictionary where keys are lengths (in string format) and values are dictionaries
-        containing wavelength and power arrays.
+        containing truncated wavelength and power arrays.
         """
-        # Initialize a list to store tuples of (key, data)
         sorted_data = []
-
-        # Separate the arrays into dictionaries
         for i in range(0, len(input_to_function)):
             key = lengths_um[i]
+            wavelength = input_to_function[i][0]
+            power = input_to_function[i][1]
+
+            if wavl_min is not None or wavl_max is not None:
+                # Truncate wavelengths and corresponding powers based on wavl_min and wavl_max
+                indices = []
+                if wavl_min is not None:
+                    indices = [idx for idx, wv in enumerate(wavelength) if wv >= wavl_min]
+                if wavl_max is not None:
+                    indices = [idx for idx in indices if wavelength[idx] <= wavl_max]
+
+                indices = list(set(indices))
+
+                wavelength = wavelength[indices]
+                power = power[indices]
+
             data = {
-                "wavelength": input_to_function[i][0],
-                "power": input_to_function[i][1]
+                "wavelength": wavelength,
+                "power": power
             }
             sorted_data.append((key, data))
 
-        # Sort the list of tuples by the keys (lengths_um)
         sorted_data.sort()
-
-        # Create the final data_sets dictionary with sorted data
         data_sets = {str(key): data for key, data in sorted_data}
 
         return data_sets
@@ -154,22 +163,18 @@ class Device:
         Returns:
             None
         """
-        # Create a new figure for the combined graph
         plt.figure(figsize=(10, 6))
-
-        # Get a colormap to automatically define line colors
         cmap = cm.get_cmap("tab10")
 
-        # Plot each dataset with a different line color
         for i, (key, data) in enumerate(separated_data.items()):
-            color = cmap(i % 10)  # Use modulo to cycle through the colormap
+            color = cmap(i % 10)
 
             if self.characterization == 'cutback_waveguide':
                 label = f"L = {key}um"
             elif self.characterization == 'cutback_device':
                 label = f"Number of Devices = {key}"
             else:
-                label = str(key)  # Default label
+                label = str(key)
 
             plt.plot(
                 data["wavelength"],
@@ -188,18 +193,13 @@ class Device:
         plt.savefig(pdf_path_raw, format='pdf')
         # plt.show()  # Display the combined graph
 
-        # Save the Matplotlib figure to a BytesIO object
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format='png')
         img_buffer.seek(0)
-
-        # Convert the BytesIO object to a DataFrame
         df_figures = pd.DataFrame([{'Name': f'{self.name}_{self.pol}{self.wavl}_1', 'Figure': img_buffer}])
-
-        # Return a dictionary containing the raw_cutback_img and other information
         return {'Name': f'{self.name}_{self.pol}{self.wavl}_1', 'Figure': img_buffer}, df_figures
 
-    def getArrays(self, input_to_function, lengths_um):
+    def getArrays(self, separated_data):
         """
         Extract power arrays and wavelength data from the input data.
 
@@ -212,22 +212,13 @@ class Device:
         power_arrays (list): A list of power arrays, one for each length.
         wavelength_data (array): Wavelength data common to all power arrays.
         """
-        # Get the separated data
-        separated_data = self.getSets(input_to_function, lengths_um)
-
         power_arrays = []
-        wavelength_data = None  # Initialize as None
-
-        # Print the separated data for verification and store power arrays
+        wavelength_data = None
         for i, (key, data) in enumerate(separated_data.items()):
-            # Store the power array in the power_arrays list
             power_arrays.append(data['power'])
-
-            # Store the wavelength data from the first file as a 1D array
             if i == 0:
                 wavelength_data = data['wavelength']
 
-        # Check if wavelength_data is None (no data found in any file)
         if wavelength_data is None:
             print("No wavelength data found!")
 
@@ -245,47 +236,19 @@ class Device:
         Returns:
         list: List of calculated slopes.
         """
-        # Create an empty list to store the slopes
         slopes = []
 
-        # Find the index corresponding to target_wavelength
-        index_target = np.argmin(np.abs(np.array(wavelength_data) - target_wavelength))
-
-        # Initialize empty lists to store x and y data at 1310 nm
-        x_target = []
-        y_target = []
-
-        # Iterate through all the entries in the power arrays
         num_entries = len(input_data[0])
         for i in range(num_entries):
-            # Initialize lists to store x and y values for the current entry
             x_values = lengths_cm_sorted
             y_values = []
 
-            # Iterate through the power arrays
             for power_array in input_data:
                 y_values.append(power_array[i])
-
-            # Calculate the coefficients for a linear polynomial fit
             coefficients = np.polyfit(x_values, y_values, 1)  # Using np.polyfit with degree 1 for linear fit
 
-            # The first coefficient (coefficients[0]) represents the slope of the linear fit
             slope = coefficients[0]
-
-            # Append the calculated slope to the list of slopes
             slopes.append(slope)
-
-            # Check if the current iteration corresponds to target wavelength
-            # if i == index_target:
-            # x_target = x_values
-            # y_target = y_values
-
-        # Print the slope at target wavelength
-        # print(f"Slope at {target_wavelength} nm: {slopes[index_target]}")
-
-        # Print x and y data at target wavelength
-        # print(f"x data at {target_wavelength} nm: {x_target}")
-        # print(f"y data at {target_wavelength} nm: {y_target}")
 
         return slopes
 
@@ -301,46 +264,25 @@ class Device:
         Returns:
         float: The cutback loss at the specified target wavelength.
         """
-        # Convert slopes to a NumPy array
         slopes = np.array(slopes)
-
-        # Find indices of non-NaN values in slopes
         valid_indices = np.where(~np.isnan(slopes))[0]
 
-        print("slopes type:", type(slopes))
-        print("valid_indices type:", type(valid_indices))
-        print("valid_indices shape:", valid_indices.shape)
-
-        # Filter out NaN values from slopes and wavelength_data
         filtered_wavelength_data = wavelength_data[valid_indices]
         filtered_slopes = slopes[valid_indices]
 
-        # Fit a polynomial of degree 3 to your data
         coefficients3 = np.polyfit(filtered_wavelength_data, filtered_slopes, degree)
-
-        # Create a polynomial function from the coefficients
         poly_func = np.poly1d(coefficients3)
-
-        # Generate x values for the line of best fit
         x_fit = np.linspace(filtered_wavelength_data.min(), filtered_wavelength_data.max(), 1000)
-
-        # Calculate the corresponding y values using the polynomial function
         y_fit = poly_func(x_fit)
 
-        # Calculate the cutback loss at the target wavelength
         target_wavelength = wavl
         slope_at_wavl = np.abs(poly_func(target_wavelength))
-
-        # Calculate the error bars (+/-)
         error = np.abs(filtered_slopes - poly_func(filtered_wavelength_data))
 
-        # Create a plot of wavelength vs. slope
         plt.figure(figsize=(10, 6))
         plt.plot(filtered_wavelength_data, np.abs(filtered_slopes), color='blue', marker='', linestyle='-',
                  label='Insertion loss (raw)')
         plt.plot(x_fit, np.abs(y_fit), color='red', linestyle='-', label='Insertion loss (fit)', linewidth=3)
-
-        # Plot labels
         plt.xlabel('Wavelength (nm)', color='black')
 
         if self.characterization == 'cutback_waveguide':
@@ -349,12 +291,11 @@ class Device:
             plt.ylabel('Insertion Loss (dB/device)', color='black')
 
         plt.title(
-            f"Insertion Losses Using the Cutback Method for {self.name}_{self.pol}{self.wavl}nm")  # Updated naming
+            f"Insertion Losses Using the Cutback Method for {self.name}_{self.pol}{self.wavl}nm")
         plt.grid(True)
         plt.legend()
         matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
 
-        # Print the cutback loss at the target wavelength
         print(
             f'The insertion loss at wavelength = {target_wavelength} is {slope_at_wavl} +/- {error[filtered_wavelength_data == target_wavelength][0]} for {self.name}_{self.pol}{self.wavl}')  # Updated naming
 
@@ -363,21 +304,14 @@ class Device:
         pdf_path_raw, pdf_path_cutback = self.saveGraph()
         plt.savefig(pdf_path_cutback, format='pdf')
 
-        # Show the plot
         # plt.show()
 
-        # Save the Matplotlib figure to a BytesIO object
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format='png')
         img_buffer.seek(0)
-
-        # Convert the BytesIO object to a DataFrame
         df_figures = pd.DataFrame([{'Name': f'{self.name}_{self.pol}{self.wavl}_2', 'Figure': img_buffer}])
-
-        # Add the figure to the existing figures DataFrame
         self.figures_df = pd.concat([self.figures_df, df_figures], ignore_index=True)
 
-        # Return a dictionary containing the cutback loss and other information
         return slope_at_wavl, cutback_error, df_figures
 
     def saveGraph(self):
@@ -392,14 +326,10 @@ class Device:
         - pdf_path_raw (str): The full path to the saved raw data PDF file.
         - pdf_path_cutback (str): The full path to the saved cutback data PDF file.
         """
-        # Create a directory based on self.name, self.pol, and self.wavl if it doesn't exist
         output_directory = os.path.join(self.main_script_directory, f"{self.name}_{self.pol}{self.wavl}")
         os.makedirs(output_directory, exist_ok=True)
 
-        # Combine the directory and the filename to get the full paths
         pdf_path_raw = os.path.join(output_directory, f"{self.name}_{self.pol}{self.wavl}nm_raw.pdf")
         pdf_path_cutback = os.path.join(output_directory, f"{self.name}_{self.pol}{self.wavl}nm_cutback.pdf")
 
-        # Now, you can save your PDFs to pdf_path_raw and pdf_path_cutback
         return pdf_path_raw, pdf_path_cutback
-    # changes

@@ -1,3 +1,4 @@
+
 """
 SiEPIC Analysis Package
 
@@ -9,10 +10,15 @@ Example:    Application of SiEPIC_AP analysis functions
             Extract the period and bandwidth from a set of devices
 """
 #%%
+import os
 import sys
 import io
-sys.path.append(r'D:\Academics\PyCharmProjects')  # Add the directory to sys.path
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(parent_dir)
 import siepic_analysis_package as siap
+
 import matplotlib.pyplot as plt
 import matplotlib, os
 import numpy as np
@@ -21,7 +27,7 @@ import pandas as pd
 class DirectionalCoupler:
     def __init__(self, fname_data, device_prefix, port_thru, port_drop, device_suffix,
                  name, wavl, pol, main_script_directory,
-                 tol=3, N_seg=325):
+                 tol=4, N_seg=325):
         self.fname_data = fname_data
         self.device_prefix = device_prefix
         self.port_thru = port_thru
@@ -42,7 +48,7 @@ class DirectionalCoupler:
         self.df_figures = pd.DataFrame()
 
 
-    def getDeviceParameter(self, deviceID, devicePrefix, deviceSuffix=''):
+    def getDeviceParameter(self, deviceID):
         """Find the variable parameter of a device based on the ID
 
         IMPORTANT: "removeprefix" and "removesuffix" are only available
@@ -56,15 +62,8 @@ class DirectionalCoupler:
         Returns:
             parameter (float): variable parameter of the device (unit based on whats in the ID)
         """
-        try:
-            start_index = deviceID.index(self.devicePrefix) + len(self.devicePrefix)
-            end_index = deviceID.index(self.deviceSuffix, start_index)
-            parameter = float(deviceID[start_index:end_index])
-            return parameter
-
-        except ValueError:
-            # Handle the case where prefix or suffix is not found
-            return None  # Return None to indicate failure
+        parameter = float(deviceID.removeprefix(self.device_prefix).removesuffix(self.device_suffix))
+        return parameter
 
     def process_files(self):
         for root, dirs, files in os.walk(self.fname_data):
@@ -81,7 +80,7 @@ class DirectionalCoupler:
                         [device.BW, device.WL] = siap.analysis.bandwidth(device.wavl, -device.dropCalib, threshold=6)
 
                         self.devices.append(device)
-                        self.period.append(self.getDeviceParameter(device.deviceID, self.device_prefix, self.device_suffix))
+                        self.period.append(self.getDeviceParameter(device.deviceID))
                         self.WL.append(device.WL)
                         self.BW.append(device.BW)
 
@@ -90,7 +89,7 @@ class DirectionalCoupler:
     def plot_devices(self):
         plt.figure(figsize=(10, 6))
         for device in self.devices:
-            label = 'Period = ' + str(self.getDeviceParameter(device.deviceID, self.device_prefix, self.device_suffix)) + ' nm'
+            label = 'Period = ' + str(self.getDeviceParameter(device.deviceID)) + ' nm'
             plt.plot(device.wavl, device.pwr[self.port_drop], label=label)
 
         plt.legend(loc=0)
@@ -99,17 +98,13 @@ class DirectionalCoupler:
         plt.title("Raw measurement of all structures")
         matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
 
-        # save plots
         pdf_path_devices_raw, pdf_path_devices_calib, pdf_path_analysis, pdf_path_analysis_WL = self.saveGraph()
         plt.savefig(pdf_path_devices_raw, format='pdf')
         # plt.show()  # Display graph
 
-        # Save the Matplotlib figure to a BytesIO object
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format='png')
         img_buffer.seek(0)
-
-        # Directly append the figure information to the existing DataFrame
         self.df_figures = self.df_figures._append(
             {'Name': f'{self.name}_{self.pol}{self.wavl}_raw', 'Figure': img_buffer},
             ignore_index=True
@@ -117,7 +112,7 @@ class DirectionalCoupler:
 
         plt.figure(figsize=(10, 6))
         for device in self.devices:
-            label = 'Period = ' + str(self.getDeviceParameter(device.deviceID, self.device_prefix, self.device_suffix)) + ' nm'
+            label = 'Period = ' + str(self.getDeviceParameter(device.deviceID)) + ' nm'
             plt.plot(device.wavl, device.dropCalib, label=label)
 
         plt.legend(loc=0)
@@ -126,17 +121,13 @@ class DirectionalCoupler:
         plt.title("Calibrated measurement of all structures (using envelope calibration)")
         matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
 
-        # save plots
         pdf_path_devices_raw, pdf_path_devices_calib, pdf_path_analysis, pdf_path_analysis_WL = self.saveGraph()
         plt.savefig(pdf_path_devices_calib, format='pdf')
         # plt.show()  # Display graph
 
-        # Save the Matplotlib figure to a BytesIO object
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format='png')
         img_buffer.seek(0)
-
-        # Directly append the figure information to the existing DataFrame
         self.df_figures = self.df_figures._append(
             {'Name': f'{self.name}_{self.pol}{self.wavl}_calib', 'Figure': img_buffer},
             ignore_index=True
@@ -158,25 +149,34 @@ class DirectionalCoupler:
         plt.title("Extracted bandwidth and central wavelength of the Bragg gratings")
         matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
 
-        # save plots
         pdf_path_devices_raw, pdf_path_devices_calib, pdf_path_analysis, pdf_path_analysis_WL = self.saveGraph()
         plt.savefig(pdf_path_analysis, format='pdf')
-        # plt.show()  # Display graph
+        # plt.show()
 
-        # Save the Matplotlib figure to a BytesIO object
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format='png')
         img_buffer.seek(0)
-
-        # Directly append the figure information to the existing DataFrame
         self.df_figures = self.df_figures._append(
             {'Name': f'{self.name}_{self.pol}{self.wavl}_central', 'Figure': img_buffer},
             ignore_index=True
         )
 
     def overlay_simulation_data(self, target_wavelength, sim_label = 'Simulation (SiO2 Clad)'):
+        # 1550nm simulation results (220 nm SOI, air clad)
+        # period_sim_air = [313, 315, 317, 319, 321, 323, 324, 325, 326]
+        # wavl_sim_air = [1517, 1522, 1527, 1532, 1538, 1543, 1544.74, 1548.9, 1549.85]
+
+        # 1550nm simulation results (220 nm SOI, SiO2 clad)
         simulation_period_sio2 = [313, 315, 317, 319, 321, 323]
         simulation_wavl_sio2 = [1536.64, 1542.24, 1547.85, 1553.45, 1559.06, 1564.56]
+
+        # 1310nm simulation results (220 nm SOI, air)
+        # period_sim_air = [273, 274, 275, 276, 277, 278, 279, 280, 281, 282, 283]
+        # wavl_sim_air = [1295.48, 1297.79, 1300.2, 1302.52, 1304.94, 1307.26, 1309.57, 1311.88, 1314.08, 1316.4, 1318.82]
+
+        # 1310nm simulation results (220 nm SOI, SiO2 clad)
+        # simulation_period_sio2 = [273, 274, 275, 276, 277, 278, 279, 280, 281, 282, 283]
+        # simulation_wavl_sio2 = [1318.45, 1321.05, 1323.65, 1326.26, 1328.86, 1331.46, 1334.06, 1336.54, 1339.14, 1341.7, 1344.21]
 
         # Interpolate simulation period at target_wavelength_sim
         simulation_period_at_target_sim = np.interp(target_wavelength, simulation_wavl_sio2, simulation_period_sio2)
@@ -213,35 +213,25 @@ class DirectionalCoupler:
         sim_coefficients = np.polyfit(common_wavelengths, sim_wavelength_interp, 2)
         sim_poly_func = np.poly1d(sim_coefficients)
 
-        # Evaluate both fit lines at the common wavelengths
         exp_wavelength_fit = exp_poly_func(common_wavelengths)
         sim_wavelength_fit = sim_poly_func(common_wavelengths)
-
-        # Calculate the differences between the fit lines
         differences = exp_wavelength_fit - sim_wavelength_fit
-
-        # Find the average difference
         average_difference = np.mean(differences)
 
         print(f"Bragg Grating Wavelength Drift is: {average_difference} nm for {self.name}_{self.pol}{self.wavl}")
 
-        # save plots
         pdf_path_devices_raw, pdf_path_devices_calib, pdf_path_analysis, pdf_path_analysis_WL = self.saveGraph()
         plt.savefig(pdf_path_analysis_WL, format='pdf')
-        # plt.show()  # Display graph
+        # plt.show()
 
-        # Save the Matplotlib figure to a BytesIO object
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format='png')
         img_buffer.seek(0)
-
-        # Directly append the figure information to the existing DataFrame
         self.df_figures = self.df_figures._append(
             {'Name': f'{self.name}_{self.pol}{self.wavl}_overlay', 'Figure': img_buffer},
             ignore_index=True
         )
 
-        # Return the average difference and the combined DataFrame
         return average_difference
     def saveGraph(self):
         """
@@ -255,15 +245,12 @@ class DirectionalCoupler:
         - pdf_path_raw (str): The full path to the saved raw data PDF file.
         - pdf_path_cutback (str): The full path to the saved cutback data PDF file.
         """
-        # Create a directory based on self.name, self.pol, and self.wavl if it doesn't exist
         output_directory = os.path.join(self.main_script_directory, f"{self.name}_{self.pol}{self.wavl}")
         os.makedirs(output_directory, exist_ok=True)
 
-        # Combine the directory and the filename to get the full paths
         pdf_path_devices_raw = os.path.join(output_directory, f"{self.name}_{self.pol}{self.wavl}_devices_raw.pdf")
         pdf_path_devices_calib = os.path.join(output_directory, f"{self.name}_{self.pol}{self.wavl}_devices_calib.pdf")
         pdf_path_analysis = os.path.join(output_directory, f"{self.name}_{self.pol}{self.wavl}_analysis.pdf")
         pdf_path_analysis_WL = os.path.join(output_directory, f"{self.name}_{self.pol}{self.wavl}_analysis_WL.pdf")
 
-        # Now, you can save your PDFs to pdf_path_raw and pdf_path_cutback
         return pdf_path_devices_raw, pdf_path_devices_calib, pdf_path_analysis, pdf_path_analysis_WL
