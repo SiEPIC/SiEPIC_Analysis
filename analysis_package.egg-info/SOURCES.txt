@@ -1,0 +1,16 @@
+setup.py
+analysis_package/__init__.py
+analysis_package/bragg.py
+analysis_package/device.py
+analysis_package/execute.py
+analysis_package/groupIndex.py
+analysis_package.egg-info/PKG-INFO
+analysis_package.egg-info/SOURCES.txt
+analysis_package.egg-info/dependency_links.txt
+analysis_package.egg-info/requires.txt
+analysis_package.egg-info/top_level.txt
+siepic_analysis_package/__init__.py
+siepic_analysis_package/analysis.py
+siepic_analysis_package/cli.py
+siepic_analysis_package/core.py
+siepic_analysis_package/lumerical.py

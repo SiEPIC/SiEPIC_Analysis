@@ -1,0 +1,25 @@
+# Note:
+# yaml file should be stored in folder with xxxx_TE folders
+#
+#
+
+devices:
+- name: PCM_Straight
+  wavelength: 1550
+  characterization: "Insertion Loss (dB/cm)"
+  polarization: TE
+  target_prefix: "PCM_StraightWGloss"
+  target_suffix: "TM"
+  wavelength_min:
+  wavelength_max:
+  port: 1
+
+- name: PCM_Spiral
+  wavelength: 1550
+  characterization: "Insertion Loss (dB/cm)"
+  polarization: TE
+  target_prefix: "PCM_SpiralWG"
+  target_suffix: "TM"
+  wavelength_min:
+  wavelength_max:
+  port: 1
