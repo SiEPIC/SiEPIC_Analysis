@@ -5,6 +5,7 @@ from analysis_package import Execute
 if __name__ == "__main__":
     all_reports = []
 
+    # main not in project
     root_path = os.path.join(os.getcwd(),'1550_TE')
     analyzer_1 = Execute(root_path)
     results_df_1, report_path = analyzer_1.gen_analysis()
