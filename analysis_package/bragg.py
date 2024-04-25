@@ -221,12 +221,12 @@ class DirectionalCoupler:
         matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
 
         # Define a common set of wavelengths for interpolation
-        common_wavelengths = np.linspace(min(min(self.period), min(simulation_period_sio2)),
-                                         max(max(self.period), max(simulation_period_sio2)), 100)
+        common_wavelengths = np.linspace(min(min(self.period), min(simulation_period)),
+                                         max(max(self.period), max(simulation_period)), 100)
 
         # Interpolate both experimental and simulated data to the common set of wavelengths
         exp_wavelength_interp = np.interp(common_wavelengths, self.period, self.WL)
-        sim_wavelength_interp = np.interp(common_wavelengths, simulation_period_sio2, simulation_wavl_sio2)
+        sim_wavelength_interp = np.interp(common_wavelengths, simulation_period, simulation_wavl)
 
         # Fit a polynomial to the experimental data
         exp_coefficients = np.polyfit(common_wavelengths, exp_wavelength_interp, 2)
