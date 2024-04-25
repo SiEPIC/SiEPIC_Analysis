@@ -51,7 +51,7 @@ devices:
   device_prefix: "PCM_Bragg_C__1000N"
   device_suffix: "nmPeriod500nmW20nmdW0Apo"
   sim_label: "Simulation (1550_SiO2 Clad)"
-  tol:
+  tolerance:
   N_seg:
   port_drop: 1 # port in the measurement set containing the drop port data
   port_thru: 1 # port in the measurement set containing the through port data
