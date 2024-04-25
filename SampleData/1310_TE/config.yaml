@@ -1,0 +1,28 @@
+# Note:
+# yaml file should be stored in folder with xxxx_TE folders
+#
+#
+
+devices:
+- name: PCM_DC
+  characterization: "Group Index"
+  wavelength: 1310
+  polarization: TE
+  device_prefix: "PCM_DC_Length"
+  device_suffix: "um_1"
+  label: 1310
+  peak_prominence:
+  port_cross: 1 # port containing the cross-port data to process
+  port_bar: 0 # port containing the bar-port data to process
+
+- name: PCM_Bragg
+  characterization: "Bragg Drift (nm)"
+  wavelength: 1310
+  polarization: TE
+  device_prefix: "PCM_Bragg_O_800N"
+  device_suffix: "nmPeriod350nmW15nmdW0Apo"
+  sim_label: "Simulation (1310_SiO2 Clad)"
+  tol:
+  N_seg:
+  port_drop: 1 # port in the measurement set containing the drop port data
+  port_thru: 1 # port in the measurement set containing the through port data
