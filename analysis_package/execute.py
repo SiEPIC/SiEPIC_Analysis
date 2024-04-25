@@ -1,3 +1,4 @@
+
 import os
 import yaml
 import pandas as pd
@@ -68,25 +69,30 @@ class Execute:
         files_path = self.root_path
         device_prefix = dataset['device_prefix']
         device_suffix = dataset['device_suffix']
+        sim_label = dataset['sim_label']
+        tol = dataset['tolerance']
+        N_seg = dataset['N_seg']
         port_drop = dataset['port_drop']
         port_thru = dataset['port_thru']
 
         dc = DirectionalCoupler(
-             fname_data=files_path,
-             device_prefix=device_prefix,
-             port_thru=port_thru,
-             port_drop=port_drop,
-             device_suffix=device_suffix,
-             name=name,
-             wavl=wavl,
-             pol=pol,
-             main_script_directory=results_directory
-            )
+            fname_data=files_path,
+            device_prefix=device_prefix,
+            port_thru=port_thru,
+            port_drop=port_drop,
+            device_suffix=device_suffix,
+            name=name,
+            wavl=wavl,
+            pol=pol,
+            main_script_directory=results_directory,
+            tol=tol,
+            N_seg=N_seg
+        )
 
         dc.process_files()
         dc.plot_devices()
         dc.plot_analysis_results()
-        bragg_drift = dc.overlay_simulation_data(target_wavelength=wavl)
+        bragg_drift = dc.overlay_simulation_data(target_wavelength=wavl, sim_label=sim_label)
 
         self.results_list = []
         characterization = dataset['characterization']
@@ -108,8 +114,18 @@ class Execute:
         files_path = self.root_path
         device_prefix = dataset['device_prefix']
         device_suffix = dataset['device_suffix']
+        label = dataset['label']
+        peak_prominence = dataset['peak_prominence']
         port_cross = dataset['port_cross']
         port_bar = dataset['port_bar']
+
+        label = int(label)
+        if label == 1550:
+            wavl_range = [1460, 1580]
+            DL = 53.793e-6
+        elif label == 1310:
+            wavl_range = [1290, 1330]
+            DL = 53.815e-6
 
         group_index = GroupIndex(directory_path=files_path,
                                  wavl=wavl,
@@ -119,12 +135,16 @@ class Execute:
                                  port_cross=port_cross,
                                  port_bar=port_bar,
                                  name=name,
-                                 main_script_directory=results_directory)
+                                 main_script_directory=results_directory,
+                                 label=label,
+                                 wavl_range=wavl_range,
+                                 DL=DL,
+                                 peak_prominence=peak_prominence)
 
         group_index.process_device_data()
         group_index.sort_devices_by_length()
         gindex, gindexError = group_index.plot_group_index(target_wavelength=wavl)
-        group_index.plot_coupling_coefficient_contour()
+        # group_index.plot_coupling_coefficient_contour()
 
         self.results_list = []
         characterization = dataset['characterization']

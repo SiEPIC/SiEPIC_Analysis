@@ -15,10 +15,14 @@ from scipy.signal import find_peaks
 
 class GroupIndex:
     def __init__(self, directory_path, wavl, pol, device_prefix, device_suffix, port_cross, port_bar,
-                 name, main_script_directory,
-                 DL=53.793e-6, wavl_range=None, window=210, peak_prominence=0.25):
-        if wavl_range is None:
-            wavl_range = [1460, 1580]
+                 name, main_script_directory, label, wavl_range, DL,
+                 peak_prominence, window=210):
+
+        if peak_prominence is None:
+            self.peak_prominence = 0.25
+        else:
+            self.peak_prominence = peak_prominence
+
         self.directory_path = directory_path
         self.wavl = wavl
         self.pol = pol
@@ -26,10 +30,11 @@ class GroupIndex:
         self.device_suffix = device_suffix
         self.port_cross = port_cross
         self.port_bar = port_bar
-        self.DL = DL
-        self.wavl_range = wavl_range
         self.window = window
-        self.peak_prominence = peak_prominence
+        self.label = label
+        self.wavl_range = wavl_range
+        self.DL = DL
+
         self.devices = []
         self.name = name
         self.main_script_directory = main_script_directory
@@ -40,30 +45,22 @@ class GroupIndex:
         return parameter
 
     def _extract_periods(self, wavelength, transmission, min_prominence=.25, plot=False):
-        # Subtract the mean of the signal
         transmission_centered = transmission - np.mean(transmission)
 
-        # Find peaks
         peak_indices = find_peaks(transmission_centered, prominence=min_prominence)[0]
         peak_wavelengths = wavelength[peak_indices]
-
-        # Calculate periods
         periods = np.diff(peak_wavelengths)
 
-        # Find troughs
         inverted_transmission_centered = -transmission_centered
         trough_indices = find_peaks(inverted_transmission_centered, prominence=min_prominence)[0]
         trough_wavelengths = wavelength[trough_indices]
 
-        # Calculate extinction ratios
         extinction_ratios = []
         for i in range(len(peak_indices) - 1):
-            # find troughs between current peak and next peak
             trough_value = transmission[trough_indices[i]]
             peak_value = transmission[peak_indices[i]]
             extinction_ratios.append(np.abs(peak_value - trough_value))
 
-        # Record the period and extinction ratio at the midpoint between each pair of consecutive peaks
         midpoints = (peak_wavelengths[:-1] + peak_wavelengths[1:]) / 2
         periods_at_midpoints = dict(zip(midpoints, periods))
         extinction_ratios_at_midpoints = dict(zip(midpoints, extinction_ratios))
@@ -102,10 +99,8 @@ class GroupIndex:
         from scipy.interpolate import interp1d
         import numpy as np
 
-        # List to store the interpolated y-values
         y_values_interp_list = []
 
-        # Interpolate each y-value array onto the new x-grid
         for x, y in zip(x_values, y_values_list):
             f = interp1d(x, y, bounds_error=False, fill_value=np.nan)
             y_new = f(x_new)
@@ -113,18 +108,12 @@ class GroupIndex:
 
         # Convert the list of interpolated y-value arrays into a 2D array
         y_values_interp_array = np.array(y_values_interp_list)
-
-        # Compute the mean of the interpolated y-value arrays, ignoring NaNs
         y_average = np.nanmean(y_values_interp_array, axis=0)
 
-        # Replace any remaining NaNs in the average with the closest valid value
         mask = np.isnan(y_average)
         y_average[mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), y_average[~mask])
-
-        # Compute the standard deviation of the interpolated y-value arrays, ignoring NaNs
         y_std = np.nanstd(y_values_interp_array, axis=0)
 
-        # Replace any NaNs in the standard deviation with the closest valid value
         mask_std = np.isnan(y_std)
         y_std[mask_std] = np.interp(np.flatnonzero(mask_std), np.flatnonzero(~mask_std), y_std[~mask_std])
 
@@ -160,6 +149,8 @@ class GroupIndex:
                         midpoints, fsr, extinction_ratios = self._extract_periods(device.wavl, device.cross_T,
                                                                                 min_prominence=self.peak_prominence, plot=False)
 
+                        # plot.show()
+
                         device.ng_wavl = midpoints
                         device.ng = siap.analysis.getGroupIndex([i * 1e-9 for i in device.ng_wavl],
                                                                 [i * 1e-9 for i in fsr],
@@ -176,9 +167,24 @@ class GroupIndex:
         Returns:
         - None
         """
-        # Simulated data coefficients
-        ng_500nm_fit = [-4.58401408e-07, 7.63213215e-05, -1.90478033e-03, 4.11962711e+00]
-        ng_wavl_fit = [7.71116919e-16, 8.52254170e-13, 1.12019032e-09, 1.45999992e-06]
+        # Simulated data coefficients for 1550nm
+        ng_500nm_fit_1550 = [-4.58401408e-07, 7.63213215e-05, -1.90478033e-03, 4.11962711e+00]
+        ng_wavl_fit_1550 = [7.71116919e-16, 8.52254170e-13, 1.12019032e-09, 1.45999992e-06]
+
+        # Simulated data coefficients for 1310nm
+        ng_500nm_fit_1310 = [-6.78194041e-10, -1.83117238e-08, 3.25911055e-04, 4.40335210e+00]
+        ng_wavl_fit_1310 = [7.56617044e-17, 1.84233132e-13, 4.86069882e-10, 1.28000000e-06]
+
+        if self.label == 1310:
+            ng_500nm_fit = ng_500nm_fit_1310
+            ng_wavl_fit = ng_wavl_fit_1310
+        elif self.label == 1550:
+            ng_500nm_fit = ng_500nm_fit_1550
+            ng_wavl_fit = ng_wavl_fit_1550
+        else:
+            ng_500nm_fit = None
+            ng_wavl_fit = None
+            print("Label not specified")
 
         # Simulated data
         ng_500nm = np.polyval(ng_500nm_fit, np.linspace(0, 100 - 1, 100))
@@ -198,13 +204,8 @@ class GroupIndex:
                                                                        [i.ng for i in self.devices],
                                                                        np.linspace(np.min(wavl_sim), np.max(wavl_sim)))
 
-        # Convert target_wavelength to the same type as ng_avg_wavl
         target_wavelength = np.asarray(target_wavelength, dtype=ng_avg_wavl.dtype)
-
-        # Find the index in ng_avg_wavl closest to target_wavelength
         idx = np.argmin(np.abs(ng_avg_wavl - target_wavelength))
-
-        # Print ng_avg and error bar at target_wavelength
         print(f"Group Index at {target_wavelength} nm is {ng_avg[idx]} ± {ng_std[idx]} for {self.name}_{self.pol}{self.wavl}")
 
         gindex = ng_avg[idx]
@@ -215,7 +216,6 @@ class GroupIndex:
         ax1.legend()
         ax1.set_ylabel('Group index')
         ax1.set_xlabel('Wavelength [nm]')
-
         pdf_path_gindex, pdf_path_contour = self.saveGraph()
         plt.savefig(pdf_path_gindex, format='pdf')
         # plt.show()
@@ -241,7 +241,6 @@ class GroupIndex:
         Returns:
         - None
         """
-        # Extracting wavelength and device length data
         ng_wavl = [device.ng_wavl[:11] for device in self.devices]
         device_lengths = [device.length for device in self.devices]
 
@@ -249,16 +248,12 @@ class GroupIndex:
         common_ng_wavl.sort()
 
         X, Y = np.meshgrid(common_ng_wavl, device_lengths)
-
-        # Creating an empty 2D array for coupling coefficient data
         Z = np.empty((len(self.devices), len(common_ng_wavl)))
 
         # Populating the 2D array with coupling coefficient data
         for i, device_ng_wavl in enumerate(ng_wavl):
-            # Take a specific wavelength from device_ng_wavl
             wavelength_at_i = device_ng_wavl[0]
 
-            # Sort ng_wavl and kappa arrays before interpolation
             sorted_indices = np.argsort(device_ng_wavl)
             interp_func = interp1d(np.array(device_ng_wavl)[sorted_indices],
                                    np.array(self.devices[i].kappa)[sorted_indices], kind='linear',
@@ -267,22 +262,20 @@ class GroupIndex:
 
         fig, ax = plt.subplots(figsize=(10, 6))
 
-        # Plotting the contour map
         contour = ax.contourf(X, Y, Z, cmap='viridis')
-
-        # Adding labels and title to the plot
         ax.set_xlabel("Wavelength [nm]")
         ax.set_ylabel("Coupling Length [µm]")
         ax.set_title("Coupling Coefficient Contour Map (100 nm gap)")
-
         fig.colorbar(contour)
         pdf_path_gindex, pdf_path_contour = self.saveGraph()
         plt.savefig(pdf_path_contour, format='pdf')
+
         # plt.show()
 
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format='png')
         img_buffer.seek(0)
+
         self.df_figures = self.df_figures._append(
             {'Name': f'{self.name}_{self.pol}{self.wavl}_coup', 'Figure': img_buffer},
             ignore_index=True
@@ -302,7 +295,6 @@ class GroupIndex:
         """
         output_directory = os.path.join(self.main_script_directory, f"{self.name}_{self.pol}{self.wavl}")
         os.makedirs(output_directory, exist_ok=True)
-
         pdf_path_gindex = os.path.join(output_directory, f"{self.name}_{self.pol}{self.wavl}_gindex.pdf")
         pdf_path_contour = os.path.join(output_directory, f"{self.name}_{self.pol}{self.wavl}_contour.pdf")
 

@@ -5,6 +5,9 @@ SiEPIC Analysis Package
 Author:     Mustafa Hammood
             Mustafa@siepic.com
 
+            Tenna Yuan
+            tenna@student.ubc.ca
+
 Example:    Application of SiEPIC_AP analysis functions
             Process data of various contra-directional couplers (CDCs)
             Extract the period and bandwidth from a set of devices
@@ -27,7 +30,7 @@ import pandas as pd
 class DirectionalCoupler:
     def __init__(self, fname_data, device_prefix, port_thru, port_drop, device_suffix,
                  name, wavl, pol, main_script_directory,
-                 tol=4, N_seg=325):
+                 tol, N_seg):
         self.fname_data = fname_data
         self.device_prefix = device_prefix
         self.port_thru = port_thru
@@ -38,8 +41,12 @@ class DirectionalCoupler:
         self.pol = pol
         self.main_script_directory = main_script_directory
 
-        self.tol = tol
-        self.N_seg = N_seg
+        if tol is None:
+            self.tol = 4
+        else: self.tol = tol
+        if N_seg is None:
+            self.N_seg = 325
+        else: self.N_seg = N_seg
 
         self.devices = []
         self.period = []
@@ -100,7 +107,7 @@ class DirectionalCoupler:
 
         pdf_path_devices_raw, pdf_path_devices_calib, pdf_path_analysis, pdf_path_analysis_WL = self.saveGraph()
         plt.savefig(pdf_path_devices_raw, format='pdf')
-        # plt.show()  # Display graph
+        # plt.show()
 
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format='png')
@@ -123,7 +130,7 @@ class DirectionalCoupler:
 
         pdf_path_devices_raw, pdf_path_devices_calib, pdf_path_analysis, pdf_path_analysis_WL = self.saveGraph()
         plt.savefig(pdf_path_devices_calib, format='pdf')
-        # plt.show()  # Display graph
+        # plt.show()
 
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format='png')
@@ -161,27 +168,43 @@ class DirectionalCoupler:
             ignore_index=True
         )
 
-    def overlay_simulation_data(self, target_wavelength, sim_label = 'Simulation (SiO2 Clad)'):
+    def overlay_simulation_data(self, target_wavelength, sim_label):
         # 1550nm simulation results (220 nm SOI, air clad)
-        # period_sim_air = [313, 315, 317, 319, 321, 323, 324, 325, 326]
-        # wavl_sim_air = [1517, 1522, 1527, 1532, 1538, 1543, 1544.74, 1548.9, 1549.85]
+        period_sim_air = [313, 315, 317, 319, 321, 323, 324, 325, 326]
+        wavl_sim_air = [1517, 1522, 1527, 1532, 1538, 1543, 1544.74, 1548.9, 1549.85]
 
         # 1550nm simulation results (220 nm SOI, SiO2 clad)
         simulation_period_sio2 = [313, 315, 317, 319, 321, 323]
         simulation_wavl_sio2 = [1536.64, 1542.24, 1547.85, 1553.45, 1559.06, 1564.56]
 
-        # 1310nm simulation results (220 nm SOI, air)
-        # period_sim_air = [273, 274, 275, 276, 277, 278, 279, 280, 281, 282, 283]
-        # wavl_sim_air = [1295.48, 1297.79, 1300.2, 1302.52, 1304.94, 1307.26, 1309.57, 1311.88, 1314.08, 1316.4, 1318.82]
-
         # 1310nm simulation results (220 nm SOI, SiO2 clad)
-        # simulation_period_sio2 = [273, 274, 275, 276, 277, 278, 279, 280, 281, 282, 283]
-        # simulation_wavl_sio2 = [1318.45, 1321.05, 1323.65, 1326.26, 1328.86, 1331.46, 1334.06, 1336.54, 1339.14, 1341.7, 1344.21]
+        simulation_period_sio2_1310 = [273, 274, 275, 276, 277, 278, 279, 280, 281, 282, 283]
+        simulation_wavl_sio2_1310 = [1318.45, 1321.05, 1323.65, 1326.26, 1328.86, 1331.46, 1334.06, 1336.54, 1339.14,
+                                     1341.7, 1344.21]
 
-        # Interpolate simulation period at target_wavelength_sim
-        simulation_period_at_target_sim = np.interp(target_wavelength, simulation_wavl_sio2, simulation_period_sio2)
+        # 1310nm simulation results (220 nm SOI, air)
+        period_sim_air_1310 = [273, 274, 275, 276, 277, 278, 279, 280, 281, 282, 283]
+        wavl_sim_air_1310 = [1295.48, 1297.79, 1300.2, 1302.52, 1304.94, 1307.26, 1309.57, 1311.88, 1314.08, 1316.4,
+                             1318.82]
 
-        # Interpolate experimental period at target_wavelength_exp
+        if sim_label == 'Simulation (1550_SiO2 Clad)':
+            simulation_period = simulation_period_sio2
+            simulation_wavl = simulation_wavl_sio2
+        elif sim_label == 'Simulation (1550_Air Clad)':
+            simulation_period = period_sim_air
+            simulation_wavl = wavl_sim_air
+        elif sim_label == 'Simulation (1310_SiO2 Clad)':
+            simulation_period = simulation_period_sio2_1310
+            simulation_wavl = simulation_wavl_sio2_1310
+        elif sim_label == 'Simulation (1310_Air Clad)':
+            simulation_period = period_sim_air_1310
+            simulation_wavl = wavl_sim_air_1310
+        else:
+            simulation_period = None
+            simulation_wavl = None
+            print('Simulation data not specified')
+
+        simulation_period_at_target_sim = np.interp(target_wavelength, simulation_wavl, simulation_period)
         experimental_period_at_target_exp = np.interp(target_wavelength, self.WL, self.period)
 
         print(f"Simulation period at {target_wavelength} nm: {simulation_period_at_target_sim} nm")
