@@ -10,6 +10,7 @@ import siepic_analysis_package as siap
 import pandas as pd
 
 import io
+import re
 import numpy as np
 import matplotlib
 import matplotlib.cm as cm
@@ -42,13 +43,21 @@ class Device:
         float: The waveguide length extracted from the device ID.
         """
         try:
+            # Find the start index of the prefix
             start_index = device_id.index(self.target_prefix) + len(self.target_prefix)
-            end_index = device_id.index(self.target_suffix, start_index)
-            device_value = float(device_id[start_index:end_index])
 
+            if self.target_suffix:  # If suffix is not empty
+                # Find the end index of the suffix
+                end_index = device_id.index(self.target_suffix, start_index)
+                value_str = device_id[start_index:end_index]
+            else:
+                # If suffix is empty, extract all digits and optionally decimal points
+                value_str = re.findall(r'[0-9.]+', device_id[start_index:])[0]
+
+            device_value = float(value_str)
             return device_value
-
-        except ValueError:
+        except (ValueError, IndexError):
+            # Handle cases where the prefix, suffix, or device_value is not found
             return None
 
     def loadData(self):
@@ -100,6 +109,7 @@ class Device:
         elif self.characterization == 'Insertion Loss (dB/device)':
             lengths_cm = [i for i in wavelengths_file]
 
+        # Sort lengths_cm from smallest to largest
         lengths_cm_sorted = sorted(lengths_cm)
         lengths_um = wavelengths_file
 
@@ -138,6 +148,7 @@ class Device:
                 if wavl_max is not None:
                     indices = [idx for idx in indices if wavelength[idx] <= wavl_max]
 
+                # Remove duplicates from indices
                 indices = list(set(indices))
 
                 wavelength = wavelength[indices]
@@ -149,6 +160,7 @@ class Device:
             }
             sorted_data.append((key, data))
 
+        # Sort the list of tuples by the keys (lengths_um)
         sorted_data.sort()
         data_sets = {str(key): data for key, data in sorted_data}
 
@@ -225,7 +237,7 @@ class Device:
 
         return power_arrays, wavelength_data
 
-    def getSlopes(self, input_data, lengths_cm_sorted, wavelength_data, target_wavelength):
+    def getSlopes(self, input_data, lengths_cm_sorted, wavelength_data, target_wavelength, uncertainty=False):
         """
         Calculate slopes for the given input data.
 
@@ -238,6 +250,7 @@ class Device:
         list: List of calculated slopes.
         """
         slopes = []
+        standard_error = None  # Initialize standard_error
 
         num_entries = len(input_data[0])
         for i in range(num_entries):
@@ -251,7 +264,22 @@ class Device:
             slope = coefficients[0]
             slopes.append(slope)
 
-        return slopes
+            # Calculate residuals
+            residuals = np.array(y_values) - (coefficients[0] * np.array(x_values) + coefficients[1])
+
+            # Calculate variance of residuals
+            var_residuals = np.var(residuals, ddof=2)  # ddof=2 for unbiased estimate
+
+            # Calculate standard error of the slope
+            if uncertainty and x_values.count(target_wavelength) > 0:
+                if standard_error is None:
+                    standard_error = []  # Initialize standard_error as a list if not already
+                target_index = x_values.index(target_wavelength)
+                std_error_slope = np.sqrt(var_residuals) / np.sqrt(np.sum((x_values - np.mean(x_values)) ** 2))
+                standard_error.append(std_error_slope)
+
+        print(f'standard_error is {standard_error}')  # Print standard_error for debugging
+        return slopes, standard_error
 
     def graphCutback(self, wavl, wavelength_data, slopes, degree=3):
         """
@@ -334,3 +362,64 @@ class Device:
         pdf_path_cutback = os.path.join(output_directory, f"{self.name}_{self.pol}{self.wavl}nm_cutback.pdf")
 
         return pdf_path_raw, pdf_path_cutback
+
+    def graphCutback_CDC(self, wavelength_min, wavelength_max, wavelength_data, slopes, standard_error):
+        """
+        Generate a graph of wavelength vs. cutback loss.
+
+        Args:
+        wavelength_min (int): Minimum wavelength value.
+        wavelength_max (int): Maximum wavelength value.
+        wavelength_data (array): Array of wavelength data.
+        slopes (array): Array of slopes.
+
+        Returns:
+        tuple: The cutback loss at the specified target wavelength, error, and dataframe with the plot.
+        """
+        slopes = np.array(slopes)
+        valid_indices = np.where(~np.isnan(slopes))[0]
+
+        filtered_wavelength_data = wavelength_data[valid_indices]
+        filtered_slopes = slopes[valid_indices]
+
+        # Define the target wavelength
+        target_wavelength = (wavelength_min + wavelength_max) / 2
+
+        # Find the closest original data point to the target wavelength
+        closest_index = np.argmin(np.abs(filtered_wavelength_data - target_wavelength))
+        slope_at_target = filtered_slopes[closest_index]
+
+        # Plotting the raw data and target wavelength
+        plt.figure(figsize=(10, 6))
+        plt.plot(filtered_wavelength_data, np.abs(filtered_slopes), 'o-', color='blue', label='Insertion Loss (raw)')
+        plt.axvline(x=target_wavelength, color='g', linestyle='--', label=f'Target Wavelength ({target_wavelength} nm)')
+
+        # Set y-axis label based on characterization type
+        if self.characterization == 'cutback_waveguide':
+            plt.ylabel('Insertion Loss (dB/cm)', color='black')
+        elif self.characterization == 'cutback_device':
+            plt.ylabel('Insertion Loss (dB/device)', color='black')
+
+        plt.xlabel('Wavelength (nm)', color='black')
+        plt.title(f"Insertion Losses Using the Cutback Method for {self.name}_{self.pol}{self.wavl}nm")
+        plt.grid(True)
+        plt.legend()
+        matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
+
+        error_at_target = standard_error
+        print(
+            f'The insertion loss at wavelength = {target_wavelength} is {slope_at_target} +/- {error_at_target} for {self.name}_{self.pol}{self.wavl}')  # Updated naming
+
+        # Save the plot
+        pdf_path_raw, pdf_path_cutback = self.saveGraph()  # Custom method to save graphs
+        plt.savefig(pdf_path_cutback, format='pdf')
+
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png')
+        img_buffer.seek(0)
+        df_figures = pd.DataFrame([{'Name': f'{self.name}_{self.pol}{self.wavl}_2', 'Figure': img_buffer}])
+        self.figures_df = pd.concat([self.figures_df, df_figures], ignore_index=True)
+
+        cutback_error = error_at_target
+
+        return slope_at_target, cutback_error, df_figures

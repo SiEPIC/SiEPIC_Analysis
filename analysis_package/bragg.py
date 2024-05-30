@@ -25,7 +25,7 @@ import siepic_analysis_package as siap
 import matplotlib.pyplot as plt
 import matplotlib, os
 import numpy as np
-import pandas as pd
+from scipy.signal import find_peaks
 
 class DirectionalCoupler:
     def __init__(self, fname_data, device_prefix, port_thru, port_drop, device_suffix,
@@ -43,10 +43,8 @@ class DirectionalCoupler:
 
         if tol is None:
             self.tol = 4
-        else: self.tol = tol
         if N_seg is None:
-            self.N_seg = 325
-        else: self.N_seg = N_seg
+            self.N_seg = 225
 
         self.devices = []
         self.period = []
@@ -55,7 +53,7 @@ class DirectionalCoupler:
         self.df_figures = pd.DataFrame()
 
 
-    def getDeviceParameter(self, deviceID):
+    def getDeviceParameter(self, deviceID, devicePrefix, deviceSuffix=''):
         """Find the variable parameter of a device based on the ID
 
         IMPORTANT: "removeprefix" and "removesuffix" are only available
@@ -69,8 +67,16 @@ class DirectionalCoupler:
         Returns:
             parameter (float): variable parameter of the device (unit based on whats in the ID)
         """
-        parameter = float(deviceID.removeprefix(self.device_prefix).removesuffix(self.device_suffix))
-        return parameter
+        try:
+            start_index = deviceID.index(devicePrefix) + len(devicePrefix)
+            end_index = deviceID.index(deviceSuffix, start_index)
+            parameter = float(deviceID[start_index:end_index])
+
+            return parameter
+
+        except ValueError:
+            # Handle the case where prefix or suffix is not found
+            return None
 
     def process_files(self):
         for root, dirs, files in os.walk(self.fname_data):
@@ -80,24 +86,40 @@ class DirectionalCoupler:
                         file_path = os.path.join(root, file)
                         device = siap.analysis.processCSV(file_path)
 
-                        device.dropCalib, device.ThruEnvelope, x, y = siap.analysis.calibrate_envelope(
-                            device.wavl, device.pwr[self.port_thru], device.pwr[self.port_drop],
-                            N_seg=self.N_seg, tol=self.tol, verbose=False)
+                        # device.dropCalib, device.ThruEnvelope, x, y = siap.analysis.calibrate_envelope(
+                        #     device.wavl, device.pwr[self.port_thru], device.pwr[self.port_drop],
+                        #     N_seg=self.N_seg, tol=self.tol, verbose=False)
+
+                        device.dropCalib, x, y = self.bragg_calibrate(device.wavl, device.pwr[self.port_thru], verbose=False)
+                        # plt.show()
 
                         [device.BW, device.WL] = siap.analysis.bandwidth(device.wavl, -device.dropCalib, threshold=6)
 
                         self.devices.append(device)
-                        self.period.append(self.getDeviceParameter(device.deviceID))
+                        self.period.append(self.getDeviceParameter(device.deviceID, self.device_prefix, self.device_suffix))
                         self.WL.append(device.WL)
                         self.BW.append(device.BW)
 
         return self.devices, self.period, self.WL, self.BW
 
     def plot_devices(self):
-        plt.figure(figsize=(10, 6))
+        data_with_labels = []
+
+        # Collect data
         for device in self.devices:
-            label = 'Period = ' + str(self.getDeviceParameter(device.deviceID)) + ' nm'
-            plt.plot(device.wavl, device.pwr[self.port_drop], label=label)
+            period = self.getDeviceParameter(device.deviceID, self.device_prefix, self.device_suffix)
+            label = f'Period = {period} nm'  # Label with the period
+            data_with_labels.append((period, device.wavl, device.pwr[self.port_drop], label))
+
+        # Sort the list by the period
+        data_with_labels.sort(key=lambda x: x[0])  # Sorting by the period
+
+        # Create the figure
+        plt.figure(figsize=(10, 6))
+
+        # Plot in the sorted order
+        for _, wavl, pwr, label in data_with_labels:
+            plt.plot(wavl, pwr, label=label)
 
         plt.legend(loc=0)
         plt.ylabel('Power [dBm]', color='black')
@@ -105,21 +127,25 @@ class DirectionalCoupler:
         plt.title("Raw measurement of all structures")
         matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
 
+        # save plots
         pdf_path_devices_raw, pdf_path_devices_calib, pdf_path_analysis, pdf_path_analysis_WL = self.saveGraph()
         plt.savefig(pdf_path_devices_raw, format='pdf')
-        # plt.show()
+        # plt.show()  # Display graph
 
+        # Save the Matplotlib figure to a BytesIO object
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format='png')
         img_buffer.seek(0)
+
         self.df_figures = self.df_figures._append(
             {'Name': f'{self.name}_{self.pol}{self.wavl}_raw', 'Figure': img_buffer},
             ignore_index=True
         )
 
+        # calib plot
         plt.figure(figsize=(10, 6))
         for device in self.devices:
-            label = 'Period = ' + str(self.getDeviceParameter(device.deviceID)) + ' nm'
+            label = 'Period = ' + str(self.getDeviceParameter(device.deviceID, self.device_prefix, self.device_suffix)) + ' nm'
             plt.plot(device.wavl, device.dropCalib, label=label)
 
         plt.legend(loc=0)
@@ -128,13 +154,17 @@ class DirectionalCoupler:
         plt.title("Calibrated measurement of all structures (using envelope calibration)")
         matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
 
+        # save plots
         pdf_path_devices_raw, pdf_path_devices_calib, pdf_path_analysis, pdf_path_analysis_WL = self.saveGraph()
         plt.savefig(pdf_path_devices_calib, format='pdf')
-        # plt.show()
+        # plt.show()  # Display graph
 
+        # Save the Matplotlib figure to a BytesIO object
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format='png')
         img_buffer.seek(0)
+
+        # Directly append the figure information to the existing DataFrame
         self.df_figures = self.df_figures._append(
             {'Name': f'{self.name}_{self.pol}{self.wavl}_calib', 'Figure': img_buffer},
             ignore_index=True
@@ -144,7 +174,8 @@ class DirectionalCoupler:
         fig, ax1 = plt.subplots(figsize=(10, 6))
 
         ax1.scatter(self.period, self.WL, color='blue')
-        ax1.set_xlabel('Grating period [nm]')
+        # ax1.set_xlabel('Grating period [nm]')
+        ax1.set_xlabel('dW [nm]')
         ax1.set_ylabel('Bragg wavelength [nm]', color='blue')
         ax1.tick_params(axis='y', colors='blue')
 
@@ -156,13 +187,16 @@ class DirectionalCoupler:
         plt.title("Extracted bandwidth and central wavelength of the Bragg gratings")
         matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
 
+        # save plots
         pdf_path_devices_raw, pdf_path_devices_calib, pdf_path_analysis, pdf_path_analysis_WL = self.saveGraph()
         plt.savefig(pdf_path_analysis, format='pdf')
-        # plt.show()
+        # plt.show()  # Display graph
 
+        # Save the Matplotlib figure to a BytesIO object
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format='png')
         img_buffer.seek(0)
+
         self.df_figures = self.df_figures._append(
             {'Name': f'{self.name}_{self.pol}{self.wavl}_central', 'Figure': img_buffer},
             ignore_index=True
@@ -178,14 +212,12 @@ class DirectionalCoupler:
         simulation_wavl_sio2 = [1536.64, 1542.24, 1547.85, 1553.45, 1559.06, 1564.56]
 
         # 1310nm simulation results (220 nm SOI, SiO2 clad)
-        simulation_period_sio2_1310 = [273, 274, 275, 276, 277, 278, 279, 280, 281, 282, 283]
-        simulation_wavl_sio2_1310 = [1318.45, 1321.05, 1323.65, 1326.26, 1328.86, 1331.46, 1334.06, 1336.54, 1339.14,
-                                     1341.7, 1344.21]
+        simulation_period_sio2_1310= [273, 274, 275, 276, 277, 278, 279, 280, 281, 282, 283]
+        simulation_wavl_sio2_1310= [1318.45, 1321.05, 1323.65, 1326.26, 1328.86, 1331.46, 1334.06, 1336.54, 1339.14, 1341.7, 1344.21]
 
         # 1310nm simulation results (220 nm SOI, air)
         period_sim_air_1310 = [273, 274, 275, 276, 277, 278, 279, 280, 281, 282, 283]
-        wavl_sim_air_1310 = [1295.48, 1297.79, 1300.2, 1302.52, 1304.94, 1307.26, 1309.57, 1311.88, 1314.08, 1316.4,
-                             1318.82]
+        wavl_sim_air_1310 = [1295.48, 1297.79, 1300.2, 1302.52, 1304.94, 1307.26, 1309.57, 1311.88, 1314.08, 1316.4, 1318.82]
 
         if sim_label == 'Simulation (1550_SiO2 Clad)':
             simulation_period = simulation_period_sio2
@@ -204,7 +236,10 @@ class DirectionalCoupler:
             simulation_wavl = None
             print('Simulation data not specified')
 
+        # Interpolate simulation period at target_wavelength_sim
         simulation_period_at_target_sim = np.interp(target_wavelength, simulation_wavl, simulation_period)
+
+        # Interpolate experimental period at target_wavelength_exp
         experimental_period_at_target_exp = np.interp(target_wavelength, self.WL, self.period)
 
         print(f"Simulation period at {target_wavelength} nm: {simulation_period_at_target_sim} nm")
@@ -236,20 +271,26 @@ class DirectionalCoupler:
         sim_coefficients = np.polyfit(common_wavelengths, sim_wavelength_interp, 2)
         sim_poly_func = np.poly1d(sim_coefficients)
 
+        # Evaluate both fit lines at the common wavelengths
         exp_wavelength_fit = exp_poly_func(common_wavelengths)
         sim_wavelength_fit = sim_poly_func(common_wavelengths)
+
+        # Calculate the differences between the fit lines
         differences = exp_wavelength_fit - sim_wavelength_fit
         average_difference = np.mean(differences)
 
         print(f"Bragg Grating Wavelength Drift is: {average_difference} nm for {self.name}_{self.pol}{self.wavl}")
 
+        # save plots
         pdf_path_devices_raw, pdf_path_devices_calib, pdf_path_analysis, pdf_path_analysis_WL = self.saveGraph()
         plt.savefig(pdf_path_analysis_WL, format='pdf')
-        # plt.show()
+        # plt.show()  # Display graph
 
+        # Save the Matplotlib figure to a BytesIO object
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format='png')
         img_buffer.seek(0)
+
         self.df_figures = self.df_figures._append(
             {'Name': f'{self.name}_{self.pol}{self.wavl}_overlay', 'Figure': img_buffer},
             ignore_index=True
@@ -268,6 +309,7 @@ class DirectionalCoupler:
         - pdf_path_raw (str): The full path to the saved raw data PDF file.
         - pdf_path_cutback (str): The full path to the saved cutback data PDF file.
         """
+        # Create a directory based on self.name, self.pol, and self.wavl if it doesn't exist
         output_directory = os.path.join(self.main_script_directory, f"{self.name}_{self.pol}{self.wavl}")
         os.makedirs(output_directory, exist_ok=True)
 
@@ -277,3 +319,115 @@ class DirectionalCoupler:
         pdf_path_analysis_WL = os.path.join(output_directory, f"{self.name}_{self.pol}{self.wavl}_analysis_WL.pdf")
 
         return pdf_path_devices_raw, pdf_path_devices_calib, pdf_path_analysis, pdf_path_analysis_WL
+
+    # functions for bragg calibration
+    def bragg_deriv(self, data, threshold):
+        # Calculate the gradient
+        gradient = np.gradient(data)
+
+        # Find the positions where the gradient exceeds the threshold
+        change_indices = np.where(np.abs(gradient) > threshold)[0]
+
+        return change_indices
+
+    def create_envelope(self, x, y):
+        # Find local maxima
+        peaks, _ = find_peaks(y)
+        # Find local minima
+        troughs, _ = find_peaks(-y)
+
+        # Interpolate to create the envelope
+        upper_envelope = np.interp(x, x[peaks], y[peaks])
+        lower_envelope = np.interp(x, x[troughs], y[troughs])
+
+        return upper_envelope, lower_envelope
+
+    def calibrate_data(self, x, y, poly_coeffs):
+        # Evaluate the polynomial fit (envelope) over the entire x array
+        poly_fit = np.polyval(poly_coeffs, x)
+        # Subtract the polynomial fit (envelope) from the original data
+        calibrated_data = y - poly_fit
+        return calibrated_data
+
+    def bragg_calibrate(self, x, y, verbose=False):
+        # Ensure x and y are numpy arrays
+        x = np.array(x)
+        y = np.array(y)
+
+        if verbose:
+            plt.figure()
+            plt.plot(x, y, label="Calibration reference")
+            plt.legend(loc=0)
+            plt.title("Original input data set")
+            plt.xlabel("X")
+            plt.ylabel("Y")
+
+        # Smooth the data before creating the envelope
+        y_smooth = siap.core.smooth(x, y, window=51, order=3)
+
+        # Define a threshold for detecting sudden changes
+        threshold = 0.3  # Adjust based on dataset
+
+        # Detect sudden drops
+        change_indices = self.bragg_deriv(y, threshold)
+        change_indices = np.array(change_indices, dtype=int)
+
+        if len(change_indices) == 0:
+            print(f"No sudden drop detected in file, try decreasing the threshold.")
+            return
+
+        if verbose:
+            plt.figure()
+            plt.plot(x, y, linewidth=0.1, label='Calibration reference')
+            plt.plot(x[change_indices], y[change_indices], 'ro', label='Excluded points')
+            plt.legend(loc=0)
+            plt.title("Sampling of reference data set")
+            plt.xlabel("X")
+            plt.ylabel("Y")
+
+        # Find the first and last points of drop
+        first_change_idx = change_indices[0]
+        last_change_idx = change_indices[-1]
+
+        # Exclude data from first to last point of drop
+        x_concatenated = np.concatenate((x[:first_change_idx], x[last_change_idx + 1:]))
+        y_concatenated = np.concatenate((y_smooth[:first_change_idx], y_smooth[last_change_idx + 1:]))
+
+        # Create an envelope function for the concatenated data
+        upper_envelope, envelope = self.create_envelope(x_concatenated, y_concatenated)
+
+        # Fit a polynomial to the envelope
+        poly_degree = 4
+        poly_coeffs = np.polyfit(x_concatenated, envelope, poly_degree)
+
+        if verbose:
+            plt.figure()
+            plt.plot(x, y, linewidth=0.1, label='Calibration reference')
+            poly_fit = np.polyval(poly_coeffs, x)
+            plt.plot(x, poly_fit, 'r', label='Polynomial Fit (Envelope)')
+            plt.plot(x[first_change_idx:last_change_idx + 1], y[first_change_idx:last_change_idx + 1], 'k--',
+                     label='Excluded Region')
+            plt.legend(loc=0)
+            plt.title("Final generated polynomial for fitting")
+            plt.xlabel("X")
+            plt.ylabel("Y")
+
+        # Calibrate the data by subtracting the polynomial fit (envelope)
+        calibrated_data = self.calibrate_data(x, y, poly_coeffs)
+
+        if verbose:
+            plt.figure()
+            plt.plot(x, y, linewidth=1, label='Calibrated input response')
+            plt.plot(x, calibrated_data, 'g', label='Calibrated envelope response')
+            plt.legend(loc=0)
+            plt.title("Final calibration")
+            plt.xlabel("X")
+            plt.ylabel("Y")
+
+        poly_fit = np.polyval(poly_coeffs, x)
+        x_envelope = x
+        y_envelope = poly_fit
+
+        calibrated = calibrated_data
+
+        return calibrated, x_envelope, y_envelope
