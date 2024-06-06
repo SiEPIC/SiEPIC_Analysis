@@ -12,6 +12,7 @@ import io
 import pandas as pd
 from scipy.interpolate import interp1d
 from scipy.signal import find_peaks
+from scipy.stats import mode
 
 class GroupIndex:
     def __init__(self, directory_path, wavl, pol, device_prefix, device_suffix, port_cross, port_bar,
@@ -211,9 +212,9 @@ class GroupIndex:
 
         for device in self.devices:
             # Print device.ng values before removing outliers
-            print(f"Device {device.deviceID} ng values before removing outliers:")
-            for ng_val in device.ng:
-                print(ng_val)
+            # print(f"Device {device.deviceID} ng values before removing outliers:")
+            # for ng_val in device.ng:
+                # print(ng_val)
 
             # Remove outliers for the current device
             cleaned_wavl_device, cleaned_ng_device = self.remove_outliers(device.ng_wavl, device.ng)
@@ -221,9 +222,9 @@ class GroupIndex:
             cleaned_ng.append(cleaned_ng_device)
 
             # Print cleaned device.ng values
-            print(f"Device {device.deviceID} ng values after removing outliers:")
-            for ng_val in cleaned_ng_device:
-                print(ng_val)
+            # print(f"Device {device.deviceID} ng values after removing outliers:")
+            # for ng_val in cleaned_ng_device:
+                # print(ng_val)
 
             # Scatter plot for the cleaned data
             ax1.scatter(cleaned_wavl_device, cleaned_ng_device, color='black', linewidth=0.1)
@@ -336,30 +337,32 @@ class GroupIndex:
 
         return pdf_path_gindex, pdf_path_contour
 
-    def remove_outliers(self, data_x, data_y, threshold=3):
+    def remove_outliers(self, data_x, data_y, mode_range=1.5):
         """
-        Removes outliers from data based on their deviation from the median absolute deviation (MAD).
+        Removes outliers from data based on their deviation from the mode.
 
         :param data_x: Numpy array of x-axis data
         :param data_y: Numpy array of y-axis data
-        :param threshold: Number of median absolute deviations (MAD) from the median to consider as outliers
-        :return: Numpy arrays with outliers removed, average, and standard deviation of the cleaned data
+        :param mode_range: Range around the mode to consider as inliers
+        :return: Numpy arrays with outliers removed
         """
-        # Combine x and y data into one array
-        combined_data = np.column_stack((data_x, data_y))
+        # Round the y values to find the mode
+        rounded_data_y = np.round(data_y)
 
-        # Calculate median and median absolute deviation
-        median = np.median(combined_data[:, 1])
-        mad = np.median(np.abs(combined_data[:, 1] - median))
+        # Calculate the mode of the rounded data
+        mode_result = mode(rounded_data_y)
+        data_mode = mode_result[0]
+        # print("Value of mode_result:", mode_result)
 
-        # Define lower and upper bounds for outliers
-        lower_bound = median - threshold * mad
-        upper_bound = median + threshold * mad
+        # Define lower and upper bounds for outliers using the rounded mode
+        lower_bound = data_mode - mode_range
+        upper_bound = data_mode + mode_range
 
-        # Remove outliers
-        cleaned_data = combined_data[(combined_data[:, 1] >= lower_bound) & (combined_data[:, 1] <= upper_bound)]
+        # Remove outliers based on the original y values
+        cleaned_data = np.column_stack((data_x, data_y))
+        cleaned_data = cleaned_data[(cleaned_data[:, 1] >= lower_bound) & (cleaned_data[:, 1] <= upper_bound)]
 
-        # Separate x and y data
+        # Separate x and y data for the original values
         cleaned_x = cleaned_data[:, 0]
         cleaned_y = cleaned_data[:, 1]
 
