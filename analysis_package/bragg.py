@@ -16,6 +16,7 @@ Example:    Application of SiEPIC_AP analysis functions
 import os
 import sys
 import io
+import re
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
@@ -25,11 +26,12 @@ import siepic_analysis_package as siap
 import matplotlib.pyplot as plt
 import matplotlib, os
 import numpy as np
+import pandas as pd
 from scipy.signal import find_peaks
 
 class DirectionalCoupler:
     def __init__(self, fname_data, device_prefix, port_thru, port_drop, device_suffix,
-                 name, wavl, pol, main_script_directory,
+                 name, wavl, pol, threshold_val, main_script_directory,
                  tol, N_seg):
         self.fname_data = fname_data
         self.device_prefix = device_prefix
@@ -39,6 +41,7 @@ class DirectionalCoupler:
         self.name = name
         self.wavl = wavl
         self.pol = pol
+        self.threshold_val = threshold_val
         self.main_script_directory = main_script_directory
 
         if tol is None:
@@ -52,30 +55,30 @@ class DirectionalCoupler:
         self.BW = []
         self.df_figures = pd.DataFrame()
 
-
-    def getDeviceParameter(self, deviceID, devicePrefix, deviceSuffix=''):
-        """Find the variable parameter of a device based on the ID
-
-        IMPORTANT: "removeprefix" and "removesuffix" are only available
-            for Python >= 3.9
+    def getDeviceParameter(self, device_id):
+        """
+        Extract the waveguide length from a device ID by removing specified prefixes and suffixes.
 
         Args:
-            deviceID (string): ID of the device.
-            devicePrefix (string): Prefix string in the device that's before the variable parameter
-            deviceSuffix (string): Any additional fields in the suffix of a device that need to be stripped, optional.
+        device_id (str): The device ID from which to extract the waveguide length.
 
         Returns:
-            parameter (float): variable parameter of the device (unit based on whats in the ID)
+        float: The waveguide length extracted from the device ID.
         """
         try:
-            start_index = deviceID.index(devicePrefix) + len(devicePrefix)
-            end_index = deviceID.index(deviceSuffix, start_index)
-            parameter = float(deviceID[start_index:end_index])
+            start_index = device_id.index(self.device_prefix) + len(self.device_prefix)
 
-            return parameter
+            if self.device_suffix:  # If suffix is not empty
+                end_index = device_id.index(self.device_suffix, start_index)
+                value_str = device_id[start_index:end_index]
+            else:
+                # If suffix is empty, extract all digits and optionally decimal points
+                value_str = re.findall(r'[0-9.]+', device_id[start_index:])[0]
 
-        except ValueError:
-            # Handle the case where prefix or suffix is not found
+            device_value = float(value_str)
+            return device_value
+        except (ValueError, IndexError):
+            # Handle cases where the prefix, suffix, or device_value is not found
             return None
 
     def process_files(self):
@@ -90,13 +93,13 @@ class DirectionalCoupler:
                         #     device.wavl, device.pwr[self.port_thru], device.pwr[self.port_drop],
                         #     N_seg=self.N_seg, tol=self.tol, verbose=False)
 
-                        device.dropCalib, x, y = self.bragg_calibrate(device.wavl, device.pwr[self.port_thru], verbose=False)
+                        device.dropCalib, x, y = self.bragg_calibrate(self.threshold_val, device.wavl, device.pwr[self.port_thru], verbose=False)
                         # plt.show()
 
                         [device.BW, device.WL] = siap.analysis.bandwidth(device.wavl, -device.dropCalib, threshold=6)
 
                         self.devices.append(device)
-                        self.period.append(self.getDeviceParameter(device.deviceID, self.device_prefix, self.device_suffix))
+                        self.period.append(self.getDeviceParameter(device.deviceID))
                         self.WL.append(device.WL)
                         self.BW.append(device.BW)
 
@@ -105,16 +108,12 @@ class DirectionalCoupler:
     def plot_devices(self):
         data_with_labels = []
 
-        # Collect data
         for device in self.devices:
-            period = self.getDeviceParameter(device.deviceID, self.device_prefix, self.device_suffix)
-            label = f'Period = {period} nm'  # Label with the period
+            period = self.getDeviceParameter(device.deviceID)
+            label = f'Period = {period} nm'
             data_with_labels.append((period, device.wavl, device.pwr[self.port_drop], label))
 
-        # Sort the list by the period
         data_with_labels.sort(key=lambda x: x[0])  # Sorting by the period
-
-        # Create the figure
         plt.figure(figsize=(10, 6))
 
         # Plot in the sorted order
@@ -145,7 +144,7 @@ class DirectionalCoupler:
         # calib plot
         plt.figure(figsize=(10, 6))
         for device in self.devices:
-            label = 'Period = ' + str(self.getDeviceParameter(device.deviceID, self.device_prefix, self.device_suffix)) + ' nm'
+            label = 'Period = ' + str(self.getDeviceParameter(device.deviceID)) + ' nm'
             plt.plot(device.wavl, device.dropCalib, label=label)
 
         plt.legend(loc=0)
@@ -164,18 +163,19 @@ class DirectionalCoupler:
         plt.savefig(img_buffer, format='png')
         img_buffer.seek(0)
 
-        # Directly append the figure information to the existing DataFrame
         self.df_figures = self.df_figures._append(
             {'Name': f'{self.name}_{self.pol}{self.wavl}_calib', 'Figure': img_buffer},
             ignore_index=True
         )
 
-    def plot_analysis_results(self):
+    def plot_analysis_results(self, bragg_type):
         fig, ax1 = plt.subplots(figsize=(10, 6))
 
         ax1.scatter(self.period, self.WL, color='blue')
-        # ax1.set_xlabel('Grating period [nm]')
-        ax1.set_xlabel('dW [nm]')
+        if bragg_type == 'sweep':
+            ax1.set_xlabel('dW [nm]')
+        else:
+            ax1.set_xlabel('Grating period [nm]')
         ax1.set_ylabel('Bragg wavelength [nm]', color='blue')
         ax1.tick_params(axis='y', colors='blue')
 
@@ -236,6 +236,9 @@ class DirectionalCoupler:
             simulation_wavl = None
             print('Simulation data not specified')
 
+        print(f'sim_wavl is {simulation_wavl}')
+        print(f'sim_period is {simulation_period}')
+
         # Interpolate simulation period at target_wavelength_sim
         simulation_period_at_target_sim = np.interp(target_wavelength, simulation_wavl, simulation_period)
 
@@ -255,7 +258,6 @@ class DirectionalCoupler:
         plt.title("Comparison of Bragg wavelength between simulation and experiment.")
         matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
 
-        # Define a common set of wavelengths for interpolation
         common_wavelengths = np.linspace(min(min(self.period), min(simulation_period)),
                                          max(max(self.period), max(simulation_period)), 100)
 
@@ -322,10 +324,8 @@ class DirectionalCoupler:
 
     # functions for bragg calibration
     def bragg_deriv(self, data, threshold):
-        # Calculate the gradient
         gradient = np.gradient(data)
 
-        # Find the positions where the gradient exceeds the threshold
         change_indices = np.where(np.abs(gradient) > threshold)[0]
 
         return change_indices
@@ -343,14 +343,11 @@ class DirectionalCoupler:
         return upper_envelope, lower_envelope
 
     def calibrate_data(self, x, y, poly_coeffs):
-        # Evaluate the polynomial fit (envelope) over the entire x array
         poly_fit = np.polyval(poly_coeffs, x)
-        # Subtract the polynomial fit (envelope) from the original data
         calibrated_data = y - poly_fit
         return calibrated_data
 
-    def bragg_calibrate(self, x, y, verbose=False):
-        # Ensure x and y are numpy arrays
+    def bragg_calibrate(self, threshold, x, y, verbose=False):
         x = np.array(x)
         y = np.array(y)
 
@@ -362,14 +359,14 @@ class DirectionalCoupler:
             plt.xlabel("X")
             plt.ylabel("Y")
 
-        # Smooth the data before creating the envelope
+        # Smooth data before creating the envelope
         y_smooth = siap.core.smooth(x, y, window=51, order=3)
 
-        # Define a threshold for detecting sudden changes
-        threshold = 0.3  # Adjust based on dataset
+        # Define threshold
+        # Adjust based on dataset, regular bragg usually threshold = 0.4
 
         # Detect sudden drops
-        change_indices = self.bragg_deriv(y, threshold)
+        change_indices = self.bragg_deriv(y_smooth, threshold)
         change_indices = np.array(change_indices, dtype=int)
 
         if len(change_indices) == 0:
@@ -393,7 +390,6 @@ class DirectionalCoupler:
         x_concatenated = np.concatenate((x[:first_change_idx], x[last_change_idx + 1:]))
         y_concatenated = np.concatenate((y_smooth[:first_change_idx], y_smooth[last_change_idx + 1:]))
 
-        # Create an envelope function for the concatenated data
         upper_envelope, envelope = self.create_envelope(x_concatenated, y_concatenated)
 
         # Fit a polynomial to the envelope

@@ -43,11 +43,9 @@ class Device:
         float: The waveguide length extracted from the device ID.
         """
         try:
-            # Find the start index of the prefix
             start_index = device_id.index(self.target_prefix) + len(self.target_prefix)
 
             if self.target_suffix:  # If suffix is not empty
-                # Find the end index of the suffix
                 end_index = device_id.index(self.target_suffix, start_index)
                 value_str = device_id[start_index:end_index]
             else:
@@ -200,11 +198,11 @@ class Device:
         plt.xlabel('Wavelength (nm)', color='black')
         plt.title(f"Raw Measurement of Cutback Structures for {self.name}_{self.pol}{self.wavl}nm")
         matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
-        plt.legend()  # Display legends for different sets
+        plt.legend()
 
         pdf_path_raw, pdf_path_cutback = self.saveGraph()
         plt.savefig(pdf_path_raw, format='pdf')
-        # plt.show()  # Display the combined graph
+        # plt.show()
 
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format='png')
@@ -245,12 +243,16 @@ class Device:
         input_data (list): List of power arrays.
         lengths_cm_sorted (list): Sorted list of lengths in centimeters.
         wavelength_data (list): List of wavelength data corresponding to the power arrays.
+        target_wavelength (float): The target wavelength to calculate uncertainty.
+        uncertainty (bool): Whether to calculate the standard error of the slopes.
 
         Returns:
         list: List of calculated slopes.
+        list: List of calculated standard errors of the slopes (if uncertainty is True), otherwise None.
         """
         slopes = []
-        standard_error = None  # Initialize standard_error
+        standard_error = [] if uncertainty else None  # Initialize standard_error if uncertainty is True
+        standard_error_at_closest = None
 
         num_entries = len(input_data[0])
         for i in range(num_entries):
@@ -266,20 +268,23 @@ class Device:
 
             # Calculate residuals
             residuals = np.array(y_values) - (coefficients[0] * np.array(x_values) + coefficients[1])
-
-            # Calculate variance of residuals
             var_residuals = np.var(residuals, ddof=2)  # ddof=2 for unbiased estimate
 
-            # Calculate standard error of the slope
-            if uncertainty and x_values.count(target_wavelength) > 0:
-                if standard_error is None:
-                    standard_error = []  # Initialize standard_error as a list if not already
-                target_index = x_values.index(target_wavelength)
-                std_error_slope = np.sqrt(var_residuals) / np.sqrt(np.sum((x_values - np.mean(x_values)) ** 2))
+            if uncertainty:
+                # Calculate standard error of the slope
+                std_error_slope = np.sqrt(var_residuals) / np.sqrt(
+                    np.sum((np.array(x_values) - np.mean(x_values)) ** 2))
                 standard_error.append(std_error_slope)
 
-        print(f'standard_error is {standard_error}')  # Print standard_error for debugging
-        return slopes, standard_error
+                # Find the index of the closest wavelength to the target wavelength
+                closest_index = np.argmin(np.abs(np.array(x_values) - target_wavelength))
+
+                # Get the standard error at the closest wavelength
+                standard_error_at_closest = standard_error[closest_index] if closest_index < len(standard_error) else None
+
+        # print(f'Standard error at closest wavelength to target: {standard_error_at_closest}')  # Print standard_error for debugging
+
+        return slopes, standard_error_at_closest
 
     def graphCutback(self, wavl, wavelength_data, slopes, degree=3):
         """
@@ -406,7 +411,7 @@ class Device:
         plt.legend()
         matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
 
-        error_at_target = standard_error
+        error_at_target = standard_error.round(2)
         print(
             f'The insertion loss at wavelength = {target_wavelength} is {slope_at_target} +/- {error_at_target} for {self.name}_{self.pol}{self.wavl}')  # Updated naming
 
