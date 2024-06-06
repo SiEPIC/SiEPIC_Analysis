@@ -1,4 +1,3 @@
-
 import os
 import yaml
 import pandas as pd
@@ -52,12 +51,13 @@ class Execute:
 
         # Call the graphCutback method
         if type == 'CDC':
+            wavl_new = (wavelength_max + wavelength_min) // 2
             # Calculate slopes
-            slopes, std_error = device.getSlopes(power_arrays, lengths_cm_sorted, wavelength_data, target_wavelength=wavl, uncertainty=True)
+            slopes, std_error = device.getSlopes(power_arrays, lengths_cm_sorted, wavelength_data, target_wavelength=wavl_new, uncertainty=True)
             cutback_value, cutback_error, df_figures_cutback = device.graphCutback_CDC(wavelength_min, wavelength_max, wavelength_data, slopes, std_error)
         else:
             # Calculate slopes
-            slopes = device.getSlopes(power_arrays, lengths_cm_sorted, wavelength_data, target_wavelength=wavl)
+            slopes, _ = device.getSlopes(power_arrays, lengths_cm_sorted, wavelength_data, target_wavelength=wavl, uncertainty=False)
             cutback_value, cutback_error, df_figures_cutback = device.graphCutback(wavl, wavelength_data, slopes)
 
         df_figures_combined = pd.concat([df_figures_raw, df_figures_cutback], ignore_index=True)
@@ -83,9 +83,10 @@ class Execute:
         device_prefix = dataset['device_prefix']
         device_suffix = dataset['device_suffix']
         sim_label = dataset['sim_label']
-        type = dataset['type']
+        bragg_type = dataset['type']
         tol = dataset['tolerance']
         N_seg = dataset['N_seg']
+        threshold_val = dataset['threshold_val']
         port_drop = dataset['port_drop']
         port_thru = dataset['port_thru']
 
@@ -98,6 +99,7 @@ class Execute:
              name=name,
              wavl=wavl,
              pol=pol,
+             threshold_val = threshold_val,
              main_script_directory=results_directory,
              tol=tol,
              N_seg=N_seg
@@ -105,11 +107,11 @@ class Execute:
 
         dc.process_files()
         dc.plot_devices()
-        dc.plot_analysis_results()
+        dc.plot_analysis_results(bragg_type)
 
         self.results_list = []
 
-        if type == 'sweep':
+        if bragg_type == 'sweep':
             result_entry = {'Name': name, 'Wavelength': f'{wavl}nm', 'Polarization': pol, 'Data': 'N/A',
                             'Error': 'N/A', 'Characterization': characterization}
             self.results_list.append(result_entry)
@@ -122,7 +124,7 @@ class Execute:
 
         results_df = pd.DataFrame(self.results_list)
 
-        if type != 'sweep':
+        if bragg_type != 'sweep':
             results_df['Data'] = results_df['Data'].round(2)
 
         df_figures = dc.df_figures
@@ -166,7 +168,7 @@ class Execute:
         group_index.process_device_data()
         group_index.sort_devices_by_length()
         gindex, gindexError = group_index.plot_group_index(target_wavelength=wavl)
-        # group_index.plot_coupling_coefficient_contour()
+        group_index.plot_coupling_coefficient_contour()
 
         self.results_list = []
         characterization = dataset['characterization']
@@ -184,25 +186,23 @@ class Execute:
         return results_df, df_figures
 
     def pdfReport(self, results_directory, results_df, df_figures):
-        # Prompt user for chip name input
         chipname = input("Enter chip name: ")
-
-        # Prompt user for measurement date input
         date_str = input("Enter measurement date (YYYY-MM-DD): ")
 
-        # Validate and convert date input
         try:
             date = datetime.strptime(date_str, "%Y-%m-%d").strftime("%B %d, %Y")
         except ValueError:
             print("Invalid date format. Please use YYYY-MM-DD.")
             return
 
-        # Prompt user for process input
         process = input("Enter process: ")
 
+        # Create the full path for the PDF file including the results_directory
         pdf_path = os.path.join(results_directory, f"{chipname}_analysis_report.pdf")
+
         doc = SimpleDocTemplate(pdf_path, pagesize=letter)
 
+        # Create a story to add elements to the PDF
         story = []
 
         title = f"Analysis Report of {chipname} chip"
@@ -211,16 +211,16 @@ class Execute:
         title_text = Paragraph(title, title_style)
         story.append(title_text)
 
-        # Add a paragraph of text
         paragraph = (f"<br/>Measurement date: {date} <br/><br/>"
-                     f"Process: {process}<br/><br/>")  # text paragraph
+                     f"Process: {process}<br/><br/>")
         paragraph_style = getSampleStyleSheet()["Normal"]
         paragraph_style.fontName = 'Times-Roman'
-        paragraph_style.fontSize = 12  # Change font size to 12
+        paragraph_style.fontSize = 12  # Change font size
         paragraph_text = Paragraph(paragraph, paragraph_style)
         story.append(paragraph_text)
 
         results_df = results_df.rename(columns={'Characterization': 'Analysis'})
+
         table_data = [results_df.columns.tolist()] + results_df.values.tolist()
         col_widths = [1.5 * inch, 1.0 * inch, 1.0 * inch, 1.0 * inch, 1.0 * inch, 2.0 * inch]
 
@@ -233,19 +233,19 @@ class Execute:
             ('FONTSIZE', (0, 0), (-1, 0), 14),  # Title font size 14
             ('FONTSIZE', (0, 1), (-1, -1), 11),  # Table font size 12
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, 1), colors.whitesmoke),  # Background for header row
+            ('BACKGROUND', (0, 1), (-1, 1), colors.whitesmoke),
             ('GRID', (0, 0), (-1, -1), 1, colors.black),
         ]))
 
         story.append(table)
         story.append(PageBreak())
+
         figures_per_page = 2
         for i, row in df_figures.iterrows():
             figure = row['Figure']
-
-            # Convert BytesIO to Image
             img = Image(figure, width=7.2 * inch, height=4.32 * inch)
             story.append(img)
+
             if (i + 1) % figures_per_page == 0:
                 story.append(PageBreak())
 
@@ -269,13 +269,11 @@ class Execute:
 
     def gen_analysis(self):
         yaml_file = os.path.join(self.root_path, 'config.yaml')
-
         with open(yaml_file, 'r') as file:
             data = yaml.load(file, Loader=yaml.FullLoader)
 
-        # Create results directory in the parent directory of root_path
         parent_directory = os.path.dirname(self.root_path)
-        results_directory = os.path.join(parent_directory, "presuffix_results")
+        results_directory = os.path.join(parent_directory, "analysis_results")
 
         if not os.path.exists(results_directory):
             os.makedirs(results_directory)
@@ -283,7 +281,6 @@ class Execute:
         results_df = pd.DataFrame()
         df_figures = pd.DataFrame()
 
-        # Perform analysis based on characterization
         for dataset in data['devices']:
             characterization = dataset['characterization']
 

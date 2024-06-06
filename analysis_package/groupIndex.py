@@ -45,7 +45,6 @@ class GroupIndex:
         return parameter
 
     def _extract_periods(self, wavelength, transmission, min_prominence=.25, plot=False):
-        # Subtract the mean of the signal
         transmission_centered = transmission - np.mean(transmission)
 
         # Find peaks
@@ -118,15 +117,10 @@ class GroupIndex:
                 y_new = f(x_new)
             y_values_interp_list.append(y_new)
 
-        # Convert the list of interpolated y-value arrays into a 2D array
         y_values_interp_array = np.array(y_values_interp_list)
-        print("Interpolated arrays:", y_values_interp_array)
 
-        # Compute the mean of the interpolated y-value arrays, ignoring NaNs
         y_average = np.nanmean(y_values_interp_array, axis=0)
         mask = np.isnan(y_average)
-        print("y_average:", y_average)
-        print("mask:", mask)
 
         # Only perform interpolation if there are non-NaN values
         if np.any(~mask):
@@ -135,7 +129,6 @@ class GroupIndex:
             print("Warning: No non-NaN data available for interpolation.")
             return x_new, np.full_like(x_new, np.nan), np.full_like(x_new, np.nan), np.full_like(x_new, np.nan)
 
-        # Compute the standard deviation of the interpolated y-value arrays, ignoring NaNs
         y_std = np.nanstd(y_values_interp_array, axis=0)
 
         if plot:
@@ -168,9 +161,9 @@ class GroupIndex:
                         [device.cross_T, device.fit] = siap.analysis.baseline_correction(
                                 [device.wavl, device.pwr[self.port_cross]])
                         midpoints, fsr, extinction_ratios = self._extract_periods(device.wavl, device.cross_T,
-                                                                                min_prominence=self.peak_prominence, plot=True)
+                                                                                min_prominence=self.peak_prominence, plot=False)
 
-                        plt.show()
+                        # plt.show()
 
                         device.ng_wavl = midpoints
                         device.ng = siap.analysis.getGroupIndex([i * 1e-9 for i in device.ng_wavl],
@@ -213,34 +206,55 @@ class GroupIndex:
 
         fig, ax1 = plt.subplots(figsize=(10, 6))
 
+        cleaned_wavl = []
+        cleaned_ng = []
+
         for device in self.devices:
-            ax1.scatter(device.ng_wavl, device.ng, color='black', linewidth=0.1)
+            # Print device.ng values before removing outliers
+            print(f"Device {device.deviceID} ng values before removing outliers:")
+            for ng_val in device.ng:
+                print(ng_val)
 
-        ax1.plot(wavl_sim, ng_500nm, color='blue', label='Simulated 500 nm X 220 nm')
+            # Remove outliers for the current device
+            cleaned_wavl_device, cleaned_ng_device = self.remove_outliers(device.ng_wavl, device.ng)
+            cleaned_wavl.append(cleaned_wavl_device)
+            cleaned_ng.append(cleaned_ng_device)
 
-        ax1.set_xlim(np.min([np.min(i.ng_wavl) for i in self.devices]),
-                     np.max([np.max(i.ng_wavl) for i in self.devices]))
+            # Print cleaned device.ng values
+            print(f"Device {device.deviceID} ng values after removing outliers:")
+            for ng_val in cleaned_ng_device:
+                print(ng_val)
 
-        ng_avg_wavl, ng_avg, ng_std, ng_std_avg = self._average_arrays([i.ng_wavl for i in self.devices],
-                                                                       [i.ng for i in self.devices],
-                                                                       np.linspace(np.min(wavl_sim), np.max(wavl_sim)))
+            # Scatter plot for the cleaned data
+            ax1.scatter(cleaned_wavl_device, cleaned_ng_device, color='black', linewidth=0.1)
+
+        # Determine the common x-axis (wavelength range) for averaging
+        wavl_range = [np.min([np.min(wavl) for wavl in cleaned_wavl]), np.max([np.max(wavl) for wavl in cleaned_wavl])]
+        common_wavl = np.linspace(wavl_range[0], wavl_range[1])
+
+        ng_avg_wavl, ng_avg, ng_std, ng_std_avg = self._average_arrays(cleaned_wavl, cleaned_ng, common_wavl)
 
         target_wavelength = np.asarray(target_wavelength, dtype=ng_avg_wavl.dtype)
         idx = np.argmin(np.abs(ng_avg_wavl - target_wavelength))
+
         print(f"Group Index at {target_wavelength} nm is {ng_avg[idx]} ± {ng_std[idx]} for {self.name}_{self.pol}{self.wavl}")
 
         gindex = ng_avg[idx]
         gindexError = ng_std[idx]
 
-        ax1.fill_between(np.linspace(np.min(wavl_sim), np.max(wavl_sim)), ng_std_avg - ng_std, ng_std_avg + ng_std,
-                         color='gray', alpha=0.2, label='Std dev')
+        # Plot the average and standard deviation
+        ax1.plot(ng_avg_wavl, ng_avg, '--', color='black', label='Average')
+        ax1.fill_between(ng_avg_wavl, ng_std_avg - ng_std, ng_std_avg + ng_std, color='gray', alpha=0.2,
+                         label='Std dev')
+
+        ax1.set_xlim(np.min([np.min(wavl) for wavl in cleaned_wavl]), np.max([np.max(wavl) for wavl in cleaned_wavl]))
+        ax1.plot(wavl_sim, ng_500nm, color='blue', label='Simulated 500 nm X 220 nm')
         ax1.legend()
         ax1.set_ylabel('Group index')
         ax1.set_xlabel('Wavelength [nm]')
 
         pdf_path_gindex, pdf_path_contour = self.saveGraph()
         plt.savefig(pdf_path_gindex, format='pdf')
-        # plt.show()
 
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format='png')
@@ -290,10 +304,8 @@ class GroupIndex:
         ax.set_title("Coupling Coefficient Contour Map (100 nm gap)")
         fig.colorbar(contour)
 
-        # Display plot
         pdf_path_gindex, pdf_path_contour = self.saveGraph()
         plt.savefig(pdf_path_contour, format='pdf')
-        # plt.show()
 
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format='png')
@@ -303,6 +315,7 @@ class GroupIndex:
             {'Name': f'{self.name}_{self.pol}{self.wavl}_coup', 'Figure': img_buffer},
             ignore_index=True
         )
+        # plt.show()  # Display the plot
 
     def saveGraph(self):
         """
@@ -322,3 +335,32 @@ class GroupIndex:
         pdf_path_contour = os.path.join(output_directory, f"{self.name}_{self.pol}{self.wavl}_contour.pdf")
 
         return pdf_path_gindex, pdf_path_contour
+
+    def remove_outliers(self, data_x, data_y, threshold=3):
+        """
+        Removes outliers from data based on their deviation from the median absolute deviation (MAD).
+
+        :param data_x: Numpy array of x-axis data
+        :param data_y: Numpy array of y-axis data
+        :param threshold: Number of median absolute deviations (MAD) from the median to consider as outliers
+        :return: Numpy arrays with outliers removed, average, and standard deviation of the cleaned data
+        """
+        # Combine x and y data into one array
+        combined_data = np.column_stack((data_x, data_y))
+
+        # Calculate median and median absolute deviation
+        median = np.median(combined_data[:, 1])
+        mad = np.median(np.abs(combined_data[:, 1] - median))
+
+        # Define lower and upper bounds for outliers
+        lower_bound = median - threshold * mad
+        upper_bound = median + threshold * mad
+
+        # Remove outliers
+        cleaned_data = combined_data[(combined_data[:, 1] >= lower_bound) & (combined_data[:, 1] <= upper_bound)]
+
+        # Separate x and y data
+        cleaned_x = cleaned_data[:, 0]
+        cleaned_y = cleaned_data[:, 1]
+
+        return cleaned_x, cleaned_y
