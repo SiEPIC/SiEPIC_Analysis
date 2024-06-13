@@ -107,7 +107,6 @@ class Device:
         elif self.characterization == 'Insertion Loss (dB/device)':
             lengths_cm = [i for i in wavelengths_file]
 
-        # Sort lengths_cm from smallest to largest
         lengths_cm_sorted = sorted(lengths_cm)
         lengths_um = wavelengths_file
 
@@ -146,9 +145,6 @@ class Device:
                 if wavl_max is not None:
                     indices = [idx for idx in indices if wavelength[idx] <= wavl_max]
 
-                # Remove duplicates from indices
-                indices = list(set(indices))
-
                 wavelength = wavelength[indices]
                 power = power[indices]
 
@@ -158,7 +154,6 @@ class Device:
             }
             sorted_data.append((key, data))
 
-        # Sort the list of tuples by the keys (lengths_um)
         sorted_data.sort()
         data_sets = {str(key): data for key, data in sorted_data}
 
@@ -235,7 +230,7 @@ class Device:
 
         return power_arrays, wavelength_data
 
-    def getSlopes(self, input_data, lengths_cm_sorted, wavelength_data, target_wavelength, uncertainty=False):
+    def getSlopes(self, input_data, lengths_cm_sorted):
         """
         Calculate slopes for the given input data.
 
@@ -243,16 +238,11 @@ class Device:
         input_data (list): List of power arrays.
         lengths_cm_sorted (list): Sorted list of lengths in centimeters.
         wavelength_data (list): List of wavelength data corresponding to the power arrays.
-        target_wavelength (float): The target wavelength to calculate uncertainty.
-        uncertainty (bool): Whether to calculate the standard error of the slopes.
 
         Returns:
         list: List of calculated slopes.
-        list: List of calculated standard errors of the slopes (if uncertainty is True), otherwise None.
         """
         slopes = []
-        standard_error = [] if uncertainty else None  # Initialize standard_error if uncertainty is True
-        standard_error_at_closest = None
 
         num_entries = len(input_data[0])
         for i in range(num_entries):
@@ -266,25 +256,7 @@ class Device:
             slope = coefficients[0]
             slopes.append(slope)
 
-            # Calculate residuals
-            residuals = np.array(y_values) - (coefficients[0] * np.array(x_values) + coefficients[1])
-            var_residuals = np.var(residuals, ddof=2)  # ddof=2 for unbiased estimate
-
-            if uncertainty:
-                # Calculate standard error of the slope
-                std_error_slope = np.sqrt(var_residuals) / np.sqrt(
-                    np.sum((np.array(x_values) - np.mean(x_values)) ** 2))
-                standard_error.append(std_error_slope)
-
-                # Find the index of the closest wavelength to the target wavelength
-                closest_index = np.argmin(np.abs(np.array(x_values) - target_wavelength))
-
-                # Get the standard error at the closest wavelength
-                standard_error_at_closest = standard_error[closest_index] if closest_index < len(standard_error) else None
-
-        # print(f'Standard error at closest wavelength to target: {standard_error_at_closest}')  # Print standard_error for debugging
-
-        return slopes, standard_error_at_closest
+        return slopes
 
     def graphCutback(self, wavl, wavelength_data, slopes, degree=3):
         """
@@ -428,3 +400,44 @@ class Device:
         cutback_error = error_at_target
 
         return slope_at_target, cutback_error, df_figures
+
+    def getSlopeUncertainty(self, input_data, lengths_cm_sorted, target_wavelength):
+        """
+        Calculate the uncertainty of the slope at the target wavelength.
+
+        Args:
+        input_data (list): List of power arrays.
+        lengths_cm_sorted (list): Sorted list of lengths in centimeters.
+        target_wavelength (float): The wavelength at which to calculate the uncertainty.
+
+        Returns:
+        float: The standard error of the slope at the target wavelength.
+        """
+        standard_error = []
+        standard_error_at_closest = None
+        num_entries = len(input_data[0])
+        for i in range(num_entries):
+            x_values = lengths_cm_sorted
+            y_values = []
+
+            for power_array in input_data:
+                y_values.append(power_array[i])
+            coefficients = np.polyfit(x_values, y_values, 1)  # Using np.polyfit with degree 1 for linear fit
+
+            # Calculate residuals
+            residuals = np.array(y_values) - (coefficients[0] * np.array(x_values) + coefficients[1])
+
+            # Calculate variance of residuals
+            var_residuals = np.var(residuals, ddof=2)  # ddof=2 for unbiased estimate
+
+            # Calculate standard error of the slope
+            std_error_slope = np.sqrt(var_residuals) / np.sqrt(np.sum((np.array(x_values) - np.mean(x_values)) ** 2))
+            standard_error.append(std_error_slope)
+
+            # Find the index of the closest wavelength to the target wavelength
+            closest_index = np.argmin(np.abs(np.array(x_values) - target_wavelength))
+
+            # Get the standard error at the closest wavelength
+            standard_error_at_closest = standard_error[closest_index] if closest_index < len(standard_error) else None
+
+        return standard_error_at_closest

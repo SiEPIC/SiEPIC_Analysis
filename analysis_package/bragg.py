@@ -1,4 +1,3 @@
-
 """
 SiEPIC Analysis Package
 
@@ -31,8 +30,8 @@ from scipy.signal import find_peaks
 
 class DirectionalCoupler:
     def __init__(self, fname_data, device_prefix, port_thru, port_drop, device_suffix,
-                 name, wavl, pol, threshold_val, main_script_directory,
-                 tol, N_seg):
+                 name, wavl, pol, main_script_directory,
+                 tol, N_seg, x_min, x_max):
         self.fname_data = fname_data
         self.device_prefix = device_prefix
         self.port_thru = port_thru
@@ -41,8 +40,9 @@ class DirectionalCoupler:
         self.name = name
         self.wavl = wavl
         self.pol = pol
-        self.threshold_val = threshold_val
         self.main_script_directory = main_script_directory
+        self.x_min = x_min
+        self.x_max = x_max
 
         if tol is None:
             self.tol = 4
@@ -93,7 +93,8 @@ class DirectionalCoupler:
                         #     device.wavl, device.pwr[self.port_thru], device.pwr[self.port_drop],
                         #     N_seg=self.N_seg, tol=self.tol, verbose=False)
 
-                        device.dropCalib, x, y = self.bragg_calibrate(self.threshold_val, device.wavl, device.pwr[self.port_thru], verbose=False)
+                        device.dropCalib, x, y = self.bragg_calibrate(device.wavl, device.pwr[self.port_thru],
+                                                                      x_min=self.x_min, x_max=self.x_max, verbose=False)
                         # plt.show()
 
                         [device.BW, device.WL] = siap.analysis.bandwidth(device.wavl, -device.dropCalib, threshold=6)
@@ -110,7 +111,7 @@ class DirectionalCoupler:
 
         for device in self.devices:
             period = self.getDeviceParameter(device.deviceID)
-            label = f'Period = {period} nm'
+            label = f'Period = {period} nm'  # Label with the period
             data_with_labels.append((period, device.wavl, device.pwr[self.port_drop], label))
 
         data_with_labels.sort(key=lambda x: x[0])  # Sorting by the period
@@ -236,9 +237,6 @@ class DirectionalCoupler:
             simulation_wavl = None
             print('Simulation data not specified')
 
-        print(f'sim_wavl is {simulation_wavl}')
-        print(f'sim_period is {simulation_period}')
-
         # Interpolate simulation period at target_wavelength_sim
         simulation_period_at_target_sim = np.interp(target_wavelength, simulation_wavl, simulation_period)
 
@@ -258,6 +256,7 @@ class DirectionalCoupler:
         plt.title("Comparison of Bragg wavelength between simulation and experiment.")
         matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
 
+        # Define a common set of wavelengths for interpolation
         common_wavelengths = np.linspace(min(min(self.period), min(simulation_period)),
                                          max(max(self.period), max(simulation_period)), 100)
 
@@ -326,6 +325,7 @@ class DirectionalCoupler:
     def bragg_deriv(self, data, threshold):
         gradient = np.gradient(data)
 
+        # Find the positions where the gradient exceeds the threshold
         change_indices = np.where(np.abs(gradient) > threshold)[0]
 
         return change_indices
@@ -347,7 +347,8 @@ class DirectionalCoupler:
         calibrated_data = y - poly_fit
         return calibrated_data
 
-    def bragg_calibrate(self, threshold, x, y, verbose=False):
+    def bragg_calibrate(self, x, y, x_min=None, x_max=None, verbose=False):
+        # Ensure x and y are numpy arrays
         x = np.array(x)
         y = np.array(y)
 
@@ -359,37 +360,54 @@ class DirectionalCoupler:
             plt.xlabel("X")
             plt.ylabel("Y")
 
-        # Smooth data before creating the envelope
+        # Smooth the data before creating the envelope
         y_smooth = siap.core.smooth(x, y, window=51, order=3)
 
-        # Define threshold
-        # Adjust based on dataset, regular bragg usually threshold = 0.4
+        # Filter the data within the x range if x_min and x_max are specified
+        if x_min is not None and x_max is not None:
+            mask = (x >= x_min) & (x <= x_max)
+            x_area = x[mask]
+            y_area = y[mask]
+        else:
+            x_area = x
+            y_area = y_smooth
+
+        # Define a threshold for detecting sudden changes
+        threshold = 0.15 # Adjust based on dataset
 
         # Detect sudden drops
-        change_indices = self.bragg_deriv(y_smooth, threshold)
+        change_indices = self.bragg_deriv(y_area, threshold)
         change_indices = np.array(change_indices, dtype=int)
 
         if len(change_indices) == 0:
-            print(f"No sudden drop detected in file, try decreasing the threshold.")
+            print(f"No sudden drop detected in file, try adjusting the threshold.")
             return
+
+        if x_min is not None and x_max is not None:
+            # Map change indices back to the original data
+            full_range_indices = np.where(mask)[0]
+            mapped_change_indices = full_range_indices[change_indices]
+        else:
+            mapped_change_indices = change_indices
 
         if verbose:
             plt.figure()
             plt.plot(x, y, linewidth=0.1, label='Calibration reference')
-            plt.plot(x[change_indices], y[change_indices], 'ro', label='Excluded points')
+            plt.plot(x[mapped_change_indices], y[mapped_change_indices], 'ro', label='Sudden Changes')
             plt.legend(loc=0)
             plt.title("Sampling of reference data set")
             plt.xlabel("X")
             plt.ylabel("Y")
 
-        # Find the first and last points of drop
-        first_change_idx = change_indices[0]
-        last_change_idx = change_indices[-1]
+        # Find the first and last points of drop mapped to original
+        first_change_idx = mapped_change_indices[0]
+        last_change_idx = mapped_change_indices[-1]
 
         # Exclude data from first to last point of drop
         x_concatenated = np.concatenate((x[:first_change_idx], x[last_change_idx + 1:]))
-        y_concatenated = np.concatenate((y_smooth[:first_change_idx], y_smooth[last_change_idx + 1:]))
+        y_concatenated = np.concatenate((y[:first_change_idx], y[last_change_idx + 1:]))
 
+        # Create an envelope function for the concatenated data
         upper_envelope, envelope = self.create_envelope(x_concatenated, y_concatenated)
 
         # Fit a polynomial to the envelope

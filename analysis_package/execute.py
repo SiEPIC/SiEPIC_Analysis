@@ -48,16 +48,14 @@ class Execute:
         separated_data = device.getSets(input_to_function, lengths_um, wavelength_min, wavelength_max)
         figure_data_raw, df_figures_raw = device.graphRaw(separated_data)
         power_arrays, wavelength_data = device.getArrays(separated_data)
+        slopes = device.getSlopes(power_arrays, lengths_cm_sorted)
 
         # Call the graphCutback method
         if type == 'CDC':
-            wavl_new = (wavelength_max + wavelength_min) // 2
-            # Calculate slopes
-            slopes, std_error = device.getSlopes(power_arrays, lengths_cm_sorted, wavelength_data, target_wavelength=wavl_new, uncertainty=True)
+            # Calculate error
+            std_error = device.getSlopeUncertainty(power_arrays, lengths_cm_sorted, target_wavelength=wavl)
             cutback_value, cutback_error, df_figures_cutback = device.graphCutback_CDC(wavelength_min, wavelength_max, wavelength_data, slopes, std_error)
         else:
-            # Calculate slopes
-            slopes, _ = device.getSlopes(power_arrays, lengths_cm_sorted, wavelength_data, target_wavelength=wavl, uncertainty=False)
             cutback_value, cutback_error, df_figures_cutback = device.graphCutback(wavl, wavelength_data, slopes)
 
         df_figures_combined = pd.concat([df_figures_raw, df_figures_cutback], ignore_index=True)
@@ -86,24 +84,26 @@ class Execute:
         bragg_type = dataset['type']
         tol = dataset['tolerance']
         N_seg = dataset['N_seg']
-        threshold_val = dataset['threshold_val']
+        x_min = dataset['x_min']
+        x_max = dataset['x_max']
         port_drop = dataset['port_drop']
         port_thru = dataset['port_thru']
 
         dc = DirectionalCoupler(
-             fname_data=files_path,
-             device_prefix=device_prefix,
-             port_thru=port_thru,
-             port_drop=port_drop,
-             device_suffix=device_suffix,
-             name=name,
-             wavl=wavl,
-             pol=pol,
-             threshold_val = threshold_val,
-             main_script_directory=results_directory,
-             tol=tol,
-             N_seg=N_seg
-            )
+            fname_data=files_path,
+            device_prefix=device_prefix,
+            port_thru=port_thru,
+            port_drop=port_drop,
+            device_suffix=device_suffix,
+            name=name,
+            wavl=wavl,
+            pol=pol,
+            main_script_directory=results_directory,
+            tol=tol,
+            N_seg=N_seg,
+            x_min=x_min,
+            x_max=x_max
+        )
 
         dc.process_files()
         dc.plot_devices()

@@ -7,12 +7,12 @@ sys.path.append(parent_dir)
 import siepic_analysis_package as siap
 
 import matplotlib.pyplot as plt
+import os
 import numpy as np
 import io
 import pandas as pd
 from scipy.interpolate import interp1d
 from scipy.signal import find_peaks
-from scipy.stats import mode
 
 class GroupIndex:
     def __init__(self, directory_path, wavl, pol, device_prefix, device_suffix, port_cross, port_bar,
@@ -46,6 +46,7 @@ class GroupIndex:
         return parameter
 
     def _extract_periods(self, wavelength, transmission, min_prominence=.25, plot=False):
+        # Subtract the mean of the signal
         transmission_centered = transmission - np.mean(transmission)
 
         # Find peaks
@@ -97,7 +98,7 @@ class GroupIndex:
 
         return midpoints, periods, extinction_ratios
 
-    def _average_arrays(self, x_values, y_values_list, x_new, plot=False):
+    def average_arrays(self, x_values, y_values_list, x_new, plot=False):
         """
         x_values: list of arrays, each containing the x-values for one of the y-value arrays
         y_values_list: list of arrays, the y-value arrays to be averaged
@@ -118,8 +119,10 @@ class GroupIndex:
                 y_new = f(x_new)
             y_values_interp_list.append(y_new)
 
+        # Convert the list of interpolated y-value arrays into a 2D array
         y_values_interp_array = np.array(y_values_interp_list)
 
+        # Compute the mean of the interpolated y-value arrays, ignoring NaNs
         y_average = np.nanmean(y_values_interp_array, axis=0)
         mask = np.isnan(y_average)
 
@@ -193,15 +196,12 @@ class GroupIndex:
         if self.label == 1310:
             ng_500nm_fit = ng_500nm_fit_1310
             ng_wavl_fit = ng_wavl_fit_1310
-            label_name = 'Simulated 350 nm X 220 nm'
         elif self.label == 1550:
             ng_500nm_fit = ng_500nm_fit_1550
             ng_wavl_fit = ng_wavl_fit_1550
-            label_name = 'Simulated 500 nm X 220 nm'
         else:
             ng_500nm_fit = None
             ng_wavl_fit = None
-            label_name = None
             print("Label not specified")
 
         # Simulated data
@@ -214,29 +214,19 @@ class GroupIndex:
         cleaned_ng = []
 
         for device in self.devices:
-            # Print device.ng values before removing outliers
-            # print(f"Device {device.deviceID} ng values before removing outliers:")
-            # for ng_val in device.ng:
-                # print(ng_val)
-
             # Remove outliers for the current device
             cleaned_wavl_device, cleaned_ng_device = self.remove_outliers(device.ng_wavl, device.ng)
             cleaned_wavl.append(cleaned_wavl_device)
             cleaned_ng.append(cleaned_ng_device)
 
-            # Print cleaned device.ng values
-            # print(f"Device {device.deviceID} ng values after removing outliers:")
-            # for ng_val in cleaned_ng_device:
-                # print(ng_val)
-
             # Scatter plot for the cleaned data
             ax1.scatter(cleaned_wavl_device, cleaned_ng_device, color='black', linewidth=0.1)
 
         # Determine the common x-axis (wavelength range) for averaging
-        wavl_range = [np.min([np.min(wavl) for wavl in cleaned_wavl]), np.max([np.max(wavl) for wavl in cleaned_wavl])]
-        common_wavl = np.linspace(wavl_range[0], wavl_range[1])
+        common_wavl = np.linspace(self.wavl_range[0], self.wavl_range[1])
 
-        ng_avg_wavl, ng_avg, ng_std, ng_std_avg = self._average_arrays(cleaned_wavl, cleaned_ng, common_wavl)
+        # Calculate the average and standard deviation
+        ng_avg_wavl, ng_avg, ng_std, ng_std_avg = self.average_arrays(cleaned_wavl, cleaned_ng, common_wavl)
 
         target_wavelength = np.asarray(target_wavelength, dtype=ng_avg_wavl.dtype)
         idx = np.argmin(np.abs(ng_avg_wavl - target_wavelength))
@@ -252,7 +242,7 @@ class GroupIndex:
                          label='Std dev')
 
         ax1.set_xlim(np.min([np.min(wavl) for wavl in cleaned_wavl]), np.max([np.max(wavl) for wavl in cleaned_wavl]))
-        ax1.plot(wavl_sim, ng_500nm, color='blue', label=label_name)
+        ax1.plot(wavl_sim, ng_500nm, color='blue', label='Simulated 500 nm X 220 nm')
         ax1.legend()
         ax1.set_ylabel('Group index')
         ax1.set_xlabel('Wavelength [nm]')
@@ -284,16 +274,20 @@ class GroupIndex:
         ng_wavl = [device.ng_wavl[:11] for device in self.devices]
         device_lengths = [device.length for device in self.devices]
 
+        # Creating a common wavelength grid
         common_ng_wavl = np.unique(np.concatenate(ng_wavl))
         common_ng_wavl.sort()
-
+        # Creating meshgrid for wavelength and device length
         X, Y = np.meshgrid(common_ng_wavl, device_lengths)
+        # Creating an empty 2D array for coupling coefficient data
         Z = np.empty((len(self.devices), len(common_ng_wavl)))
 
         # Populating the 2D array with coupling coefficient data
         for i, device_ng_wavl in enumerate(ng_wavl):
+            # Take a specific wavelength from device_ng_wavl
             wavelength_at_i = device_ng_wavl[0]
 
+            # Sort ng_wavl and kappa arrays before interpolation
             sorted_indices = np.argsort(device_ng_wavl)
             interp_func = interp1d(np.array(device_ng_wavl)[sorted_indices],
                                    np.array(self.devices[i].kappa)[sorted_indices], kind='linear',
@@ -340,32 +334,25 @@ class GroupIndex:
 
         return pdf_path_gindex, pdf_path_contour
 
-    def remove_outliers(self, data_x, data_y, mode_range=1.5):
+    def remove_outliers(self, data_x, data_y, threshold=3):
         """
-        Removes outliers from data based on their deviation from the mode.
+        Removes outliers from data based on their deviation from the median absolute deviation (MAD).
 
         :param data_x: Numpy array of x-axis data
         :param data_y: Numpy array of y-axis data
-        :param mode_range: Range around the mode to consider as inliers
-        :return: Numpy arrays with outliers removed
+        :param threshold: Number of median absolute deviations (MAD) from the median to consider as outliers
+        :return: Numpy arrays with outliers removed, average, and standard deviation of the cleaned data
         """
-        # Round the y values to find the mode
-        rounded_data_y = np.round(data_y)
+        combined_data = np.column_stack((data_x, data_y))
 
-        # Calculate the mode of the rounded data
-        mode_result = mode(rounded_data_y)
-        data_mode = mode_result[0]
-        # print("Value of mode_result:", mode_result)
+        median = np.median(combined_data[:, 1])
+        mad = np.median(np.abs(combined_data[:, 1] - median))
 
-        # Define lower and upper bounds for outliers using the rounded mode
-        lower_bound = data_mode - mode_range
-        upper_bound = data_mode + mode_range
+        # Define lower and upper bounds for outliers
+        lower_bound = median - threshold * mad
+        upper_bound = median + threshold * mad
+        cleaned_data = combined_data[(combined_data[:, 1] >= lower_bound) & (combined_data[:, 1] <= upper_bound)]
 
-        # Remove outliers based on the original y values
-        cleaned_data = np.column_stack((data_x, data_y))
-        cleaned_data = cleaned_data[(cleaned_data[:, 1] >= lower_bound) & (cleaned_data[:, 1] <= upper_bound)]
-
-        # Separate x and y data for the original values
         cleaned_x = cleaned_data[:, 0]
         cleaned_y = cleaned_data[:, 1]
 

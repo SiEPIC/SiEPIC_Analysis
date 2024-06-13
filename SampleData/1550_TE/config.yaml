@@ -69,7 +69,8 @@ devices:
   sim_label: "Simulation (1550_SiO2 Clad)"
   tolerance:
   N_seg:
-  threshold_val: 0.4
+  x_min:
+  x_max:
   port_drop: 1 # port in the measurement set containing the drop port data
   port_thru: 1 # port in the measurement set containing the through port data
 
@@ -83,7 +84,8 @@ devices:
   sim_label:
   tolerance:
   N_seg:
-  threshold_val: 0.12
+  x_min: 1500
+  x_max: 1560
   port_drop: 1 # port in the measurement set containing the drop port data
   port_thru: 1 # port in the measurement set containing the through port data
 
@@ -94,6 +96,6 @@ devices:
   device_prefix: "PCM_DC_Length"
   device_suffix: "um_2"
   measurement_label: "1550" # adjusts set of simulation data used for analysis
-  peak_prominence: 0.7
+  peak_prominence: 0.85
   port_cross: 1 # port containing the cross-port data to process
   port_bar: 0 # port containing the bar-port data to process
