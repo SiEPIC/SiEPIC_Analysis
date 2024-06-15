@@ -282,7 +282,7 @@ class Device:
         y_fit = poly_func(x_fit)
 
         target_wavelength = wavl
-        slope_at_wavl = np.abs(poly_func(target_wavelength))
+        slope_at_wavl = -(poly_func(target_wavelength))
         error = np.abs(filtered_slopes - poly_func(filtered_wavelength_data))
 
         plt.figure(figsize=(10, 6))
@@ -364,19 +364,13 @@ class Device:
 
         # Find the closest original data point to the target wavelength
         closest_index = np.argmin(np.abs(filtered_wavelength_data - target_wavelength))
-        slope_at_target = filtered_slopes[closest_index]
+        slope_at_target = -(filtered_slopes[closest_index])
 
         # Plotting the raw data and target wavelength
         plt.figure(figsize=(10, 6))
         plt.plot(filtered_wavelength_data, np.abs(filtered_slopes), 'o-', color='blue', label='Insertion Loss (raw)')
         plt.axvline(x=target_wavelength, color='g', linestyle='--', label=f'Target Wavelength ({target_wavelength} nm)')
-
-        # Set y-axis label based on characterization type
-        if self.characterization == 'cutback_waveguide':
-            plt.ylabel('Insertion Loss (dB/cm)', color='black')
-        elif self.characterization == 'cutback_device':
-            plt.ylabel('Insertion Loss (dB/device)', color='black')
-
+        plt.ylabel('Insertion Loss (dB/device)', color='black')
         plt.xlabel('Wavelength (nm)', color='black')
         plt.title(f"Insertion Losses Using the Cutback Method for {self.name}_{self.pol}{self.wavl}nm")
         plt.grid(True)
