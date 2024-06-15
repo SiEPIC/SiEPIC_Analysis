@@ -106,28 +106,28 @@ class DirectionalCoupler:
 
         return self.devices, self.period, self.WL, self.BW
 
-    def plot_devices(self):
-        data_with_labels = []
+    def plot_devices(self, bragg_type):
+        if bragg_type == 'sweep':
+            data_name = 'dW'
+        else:
+            data_name = 'Period'
 
-        for device in self.devices:
-            period = self.getDeviceParameter(device.deviceID)
-            label = f'Period = {period} nm'  # Label with the period
-            data_with_labels.append((period, device.wavl, device.pwr[self.port_drop], label))
+        # Sort devices by the parameter returned by getDeviceParameter
+        sorted_devices = sorted(self.devices, key=lambda device: self.getDeviceParameter(device.deviceID))
 
-        data_with_labels.sort(key=lambda x: x[0])  # Sorting by the period
+        # Raw measurement plot
         plt.figure(figsize=(10, 6))
-
-        # Plot in the sorted order
-        for _, wavl, pwr, label in data_with_labels:
-            plt.plot(wavl, pwr, label=label)
+        matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
+        for device in sorted_devices:
+            label = data_name + ' = ' + str(self.getDeviceParameter(device.deviceID)) + ' nm'
+            plt.plot(device.wavl, device.pwr[self.port_drop], label=label)
 
         plt.legend(loc=0)
         plt.ylabel('Power [dBm]', color='black')
         plt.xlabel('Wavelength [nm]', color='black')
         plt.title("Raw measurement of all structures")
-        matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
 
-        # save plots
+        # Save plots
         pdf_path_devices_raw, pdf_path_devices_calib, pdf_path_analysis, pdf_path_analysis_WL = self.saveGraph()
         plt.savefig(pdf_path_devices_raw, format='pdf')
         # plt.show()  # Display graph
@@ -142,19 +142,18 @@ class DirectionalCoupler:
             ignore_index=True
         )
 
-        # calib plot
+        # Calibrated measurement plot
         plt.figure(figsize=(10, 6))
-        for device in self.devices:
-            label = 'Period = ' + str(self.getDeviceParameter(device.deviceID)) + ' nm'
+        for device in sorted_devices:
+            label = data_name + ' = ' + str(self.getDeviceParameter(device.deviceID)) + ' nm'
             plt.plot(device.wavl, device.dropCalib, label=label)
 
         plt.legend(loc=0)
         plt.ylabel('Transmission (dB)', color='black')
         plt.xlabel('Wavelength (nm)', color='black')
         plt.title("Calibrated measurement of all structures (using envelope calibration)")
-        matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
 
-        # save plots
+        # Save plots
         pdf_path_devices_raw, pdf_path_devices_calib, pdf_path_analysis, pdf_path_analysis_WL = self.saveGraph()
         plt.savefig(pdf_path_devices_calib, format='pdf')
         # plt.show()  # Display graph

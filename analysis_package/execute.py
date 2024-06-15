@@ -106,7 +106,7 @@ class Execute:
         )
 
         dc.process_files()
-        dc.plot_devices()
+        dc.plot_devices(bragg_type)
         dc.plot_analysis_results(bragg_type)
 
         self.results_list = []
@@ -173,7 +173,7 @@ class Execute:
         self.results_list = []
         characterization = dataset['characterization']
 
-        result_entry = {'Name': name, 'Wavelength': f'{wavl} nm', 'Polarization': pol, 'Data': gindex,
+        result_entry = {'Name': name, 'Wavelength': f'{wavl}nm', 'Polarization': pol, 'Data': gindex,
                         'Error': gindexError, 'Characterization': characterization}
         self.results_list.append(result_entry)
         results_df = pd.DataFrame(self.results_list)
