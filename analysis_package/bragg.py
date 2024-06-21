@@ -1,3 +1,4 @@
+
 """
 SiEPIC Analysis Package
 
@@ -31,7 +32,7 @@ from scipy.signal import find_peaks
 class DirectionalCoupler:
     def __init__(self, fname_data, device_prefix, port_thru, port_drop, device_suffix,
                  name, wavl, pol, main_script_directory,
-                 tol, N_seg, x_min, x_max):
+                 threshold, x_min, x_max):
         self.fname_data = fname_data
         self.device_prefix = device_prefix
         self.port_thru = port_thru
@@ -41,13 +42,9 @@ class DirectionalCoupler:
         self.wavl = wavl
         self.pol = pol
         self.main_script_directory = main_script_directory
+        self.threshold = threshold
         self.x_min = x_min
         self.x_max = x_max
-
-        if tol is None:
-            self.tol = 4
-        if N_seg is None:
-            self.N_seg = 225
 
         self.devices = []
         self.period = []
@@ -372,7 +369,7 @@ class DirectionalCoupler:
             y_area = y_smooth
 
         # Define a threshold for detecting sudden changes
-        threshold = 0.15 # Adjust based on dataset
+        threshold = self.threshold # Adjust based on datasets
 
         # Detect sudden drops
         change_indices = self.bragg_deriv(y_area, threshold)

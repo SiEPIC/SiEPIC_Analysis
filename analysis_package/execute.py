@@ -82,12 +82,16 @@ class Execute:
         device_suffix = dataset['device_suffix']
         sim_label = dataset['sim_label']
         bragg_type = dataset['type']
-        tol = dataset['tolerance']
-        N_seg = dataset['N_seg']
+        threshold_val = dataset['threshold']
         x_min = dataset['x_min']
         x_max = dataset['x_max']
         port_drop = dataset['port_drop']
         port_thru = dataset['port_thru']
+
+        if threshold_val is None:
+            threshold = 0.25
+        else:
+            threshold = threshold_val
 
         dc = DirectionalCoupler(
             fname_data=files_path,
@@ -99,8 +103,7 @@ class Execute:
             wavl=wavl,
             pol=pol,
             main_script_directory=results_directory,
-            tol=tol,
-            N_seg=N_seg,
+            threshold=threshold,
             x_min=x_min,
             x_max=x_max
         )
