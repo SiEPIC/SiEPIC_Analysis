@@ -80,8 +80,8 @@ class Execute:
         files_path = self.root_path
         device_prefix = dataset['device_prefix']
         device_suffix = dataset['device_suffix']
-        sim_label = dataset['sim_label']
         bragg_type = dataset['type']
+        sim_label = dataset['sim_label']
         threshold_val = dataset['threshold']
         x_min = dataset['x_min']
         x_max = dataset['x_max']
