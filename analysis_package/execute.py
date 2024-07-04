@@ -143,6 +143,8 @@ class Execute:
         device_suffix = dataset['device_suffix']
         measurement_label = dataset['measurement_label']
         peak_prominence = dataset['peak_prominence']
+        x_min = dataset['x_min']
+        x_max = dataset ['x_max']
         port_cross = dataset['port_cross']
         port_bar = dataset['port_bar']
 
@@ -168,7 +170,7 @@ class Execute:
                                  DL=DL,
                                  peak_prominence=peak_prominence)
 
-        group_index.process_device_data()
+        group_index.process_device_data(x_min, x_max)
         group_index.sort_devices_by_length()
         gindex, gindexError = group_index.plot_group_index(target_wavelength=wavl)
         group_index.plot_coupling_coefficient_contour()

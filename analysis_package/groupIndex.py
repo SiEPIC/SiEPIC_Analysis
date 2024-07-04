@@ -148,7 +148,7 @@ class GroupIndex:
 
         return x_new, y_average, y_std, y_average
 
-    def process_device_data(self):
+    def process_device_data(self, min, max):
         for root, dirs, files in os.walk(self.directory_path):
             if os.path.basename(root).startswith(self.device_prefix):
                 for file in files:
@@ -157,11 +157,20 @@ class GroupIndex:
                         self.devices.append(device)
 
                         device.length = self._get_device_parameter(device.deviceID)
+
+                        if min == None:
+                            range_min = self.wavl_range[0]
+                        else:
+                            range_min = min
+                        if max == None:
+                            range_max = self.wavl_range[1]
+                        else:
+                            range_max = max
                         device.wavl, device.pwr[self.port_cross] = siap.analysis.truncate_data(device.wavl,
                                                                                             siap.core.smooth(device.wavl,
                                                                                                              device.pwr[self.port_cross],
                                                                                                              window=self.window),
-                                                                                            self.wavl_range[0], self.wavl_range[1])
+                                                                                                             range_min, range_max)
                         [device.cross_T, device.fit] = siap.analysis.baseline_correction(
                                 [device.wavl, device.pwr[self.port_cross]])
                         midpoints, fsr, extinction_ratios = self._extract_periods(device.wavl, device.cross_T,

@@ -97,5 +97,7 @@ devices:
   device_suffix: "um_2"
   measurement_label: "1550" # adjusts set of simulation data used for analysis
   peak_prominence: 0.85
+  x_min:
+  x_max:
   port_cross: 1 # port containing the cross-port data to process
   port_bar: 0 # port containing the bar-port data to process
