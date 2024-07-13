@@ -244,7 +244,7 @@ class DirectionalCoupler:
 
         plt.figure(figsize=(10, 6))
         plt.scatter(self.period, self.WL, color='r', marker='x', label='Experiment')
-        plt.scatter(simulation_period_sio2, simulation_wavl_sio2, color='b', marker='o', label=sim_label)
+        plt.scatter(simulation_period, simulation_wavl, color='b', marker='o', label=sim_label)
 
         plt.legend()
         plt.ylabel('Bragg Wavelength [nm]', color='black')

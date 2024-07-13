@@ -205,12 +205,15 @@ class GroupIndex:
         if self.label == 1310:
             ng_500nm_fit = ng_500nm_fit_1310
             ng_wavl_fit = ng_wavl_fit_1310
+            title = '350 nm'
         elif self.label == 1550:
             ng_500nm_fit = ng_500nm_fit_1550
             ng_wavl_fit = ng_wavl_fit_1550
+            title = '500 nm'
         else:
             ng_500nm_fit = None
             ng_wavl_fit = None
+            title = None
             print("Label not specified")
 
         # Simulated data
@@ -251,7 +254,7 @@ class GroupIndex:
                          label='Std dev')
 
         ax1.set_xlim(np.min([np.min(wavl) for wavl in cleaned_wavl]), np.max([np.max(wavl) for wavl in cleaned_wavl]))
-        ax1.plot(wavl_sim, ng_500nm, color='blue', label='Simulated 500 nm X 220 nm')
+        ax1.plot(wavl_sim, ng_500nm, color='blue', label=f'Simulated {title} X 220 nm')
         ax1.legend()
         ax1.set_ylabel('Group index')
         ax1.set_xlabel('Wavelength [nm]')
