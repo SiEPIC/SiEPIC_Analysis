@@ -1,4 +1,3 @@
-
 import os
 import sys
 
@@ -8,14 +7,12 @@ sys.path.append(parent_dir)
 import siepic_analysis_package as siap
 
 import pandas as pd
-
 import io
 import re
 import numpy as np
 import matplotlib
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
-
 
 class Device:
     def __init__(self, wavl, pol, root_path, main_script_directory, files_path, target_prefix, target_suffix, port,
@@ -382,7 +379,7 @@ class Device:
             f'The insertion loss at wavelength = {target_wavelength} is {slope_at_target} +/- {error_at_target} for {self.name}_{self.pol}{self.wavl}')  # Updated naming
 
         # Save the plot
-        pdf_path_raw, pdf_path_cutback = self.saveGraph()  # Custom method to save graphs
+        pdf_path_raw, pdf_path_cutback = self.saveGraph()
         plt.savefig(pdf_path_cutback, format='pdf')
 
         img_buffer = io.BytesIO()
