@@ -1,13 +1,18 @@
 import os
 from analysis_package import Execute
 
+
 # Example usage:
 if __name__ == "__main__":
     all_reports = []
 
+    chip_name = 'EdX_May_2023_1550TE'
+    measure_date = '2023-08-28'  # YYYY-MM-DD
+    process = 'ANT'
+
     # main not in project
     root_path = os.path.join(os.getcwd(), '1550_TE')
-    analyzer_1 = Execute(root_path)
+    analyzer_1 = Execute(root_path, chip_name, measure_date, process)
     results_df_1, report_path = analyzer_1.gen_analysis()
     print(results_df_1)
     all_reports.append(report_path)
