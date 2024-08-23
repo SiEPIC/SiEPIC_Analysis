@@ -14,6 +14,7 @@ import pandas as pd
 from scipy.interpolate import interp1d
 from scipy.signal import find_peaks
 
+
 class GroupIndex:
     def __init__(self, directory_path, wavl, pol, device_prefix, device_suffix, port_cross, port_bar,
                  name, main_script_directory, measurement_label, wavl_range, DL,
@@ -291,7 +292,6 @@ class GroupIndex:
         common_ng_wavl.sort()
         # Creating meshgrid for wavelength and device length
         X, Y = np.meshgrid(common_ng_wavl, device_lengths)
-        # Creating an empty 2D array for coupling coefficient data
         Z = np.empty((len(self.devices), len(common_ng_wavl)))
 
         # Populating the 2D array with coupling coefficient data
