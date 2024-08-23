@@ -15,3 +15,6 @@ Devices analyzed:
 
 
 **main.py is inside SampleData
+
+Install package before use through the following command:
+pip install -e .
