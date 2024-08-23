@@ -2,6 +2,7 @@
 # yaml file should be stored in folder with device name folders
 #
 #
+#
 
 devices:
 - name: PCM_Straight
@@ -81,7 +82,7 @@ devices:
   device_suffix: "nmdW0Apo"
   type: "sweep"
   sim_label:
-  threshold:
+  threshold: 0.13
   x_min: 1500
   x_max: 1560
   port_drop: 1 # port in the measurement set containing the drop port data
