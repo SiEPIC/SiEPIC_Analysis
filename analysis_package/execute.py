@@ -13,11 +13,15 @@ from PyPDF2 import PdfWriter, PdfReader
 from analysis_package import Device
 from analysis_package.bragg import DirectionalCoupler
 from analysis_package.groupIndex import GroupIndex
+
 class Execute:
-    def __init__(self, root_path):
+    def __init__(self, root_path, chip_name, measure_date, process):
         self.root_path = root_path
         self.results_list = []
         self.all_pdf_paths = []
+        self.chip_name = chip_name
+        self.measure_date = measure_date
+        self.process = process
 
     def analyze_cutback(self, dataset, results_directory):
         name = dataset['name']
@@ -32,7 +36,7 @@ class Execute:
         type = dataset['type']
         port = dataset['port']
 
-        # Create an instance of the Device class (Assuming you have a Device class)
+        # Create an instance of the Device class
         device = Device(wavl=wavl, pol=pol,
                         root_path=self.root_path,
                         main_script_directory=results_directory,
@@ -191,16 +195,26 @@ class Execute:
         return results_df, df_figures
 
     def pdfReport(self, results_directory, results_df, df_figures):
-        chipname = input("Enter chip name: ")
-        date_str = input("Enter measurement date (YYYY-MM-DD): ")
+        if self.chip_name:
+            chipname = self.chip_name
+        else:
+            chipname = input("Enter chip name: ")
 
-        try:
-            date = datetime.strptime(date_str, "%Y-%m-%d").strftime("%B %d, %Y")
-        except ValueError:
-            print("Invalid date format. Please use YYYY-MM-DD.")
-            return
+        if self.measure_date:
+            date = self.measure_date
+        else:
+            date_str = input("Enter measurement date (YYYY-MM-DD): ")
 
-        process = input("Enter process: ")
+            try:
+                date = datetime.strptime(date_str, "%Y-%m-%d").strftime("%B %d, %Y")
+            except ValueError:
+                print("Invalid date format. Please use YYYY-MM-DD.")
+                return
+
+        if self.process:
+            process = self.process
+        else:
+            process = input("Enter process: ")
 
         # Create the full path for the PDF file including the results_directory
         pdf_path = os.path.join(results_directory, f"{chipname}_analysis_report.pdf")
@@ -305,5 +319,7 @@ class Execute:
                 print(f"Unknown characterization type: {characterization}")
 
         report_path = self.pdfReport(results_directory, results_df, df_figures)
+
+        print(f'Report generated at {report_path}')
 
         return results_df, report_path
