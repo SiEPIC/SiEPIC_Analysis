@@ -4,25 +4,73 @@
 #
 
 devices:
-- name: PCM_DC
-  characterization: "Group Index"
+- name: PCM_Straight
+  wavelength: 1310
+  characterization: "Insertion Loss (dB/cm)"
+  polarization: TE
+  target_prefix: "PCM_StraightLongWGloss"
+  target_suffix: "TE"
+  wavelength_min:
+  wavelength_max:
+  type:
+  port: 1
+
+- name: PCM_Spiral
+  wavelength: 1310
+  characterization: "Insertion Loss (dB/cm)"
+  polarization: TE
+  target_prefix: "PCM_SpiralWG"
+  target_suffix: "TE"
+  wavelength_min:
+  wavelength_max:
+  type:
+  port: 1
+
+- name: PCM_YBranch
+  characterization: "Insertion Loss (dB/device)"
   wavelength: 1310
   polarization: TE
-  device_prefix: "PCM_DC_Length"
-  device_suffix: "um_1"
-  label: 1310
-  peak_prominence:
-  port_cross: 1 # port containing the cross-port data to process
-  port_bar: 0 # port containing the bar-port data to process
+  target_prefix: "PCM_Ycutbacks_N"
+  target_suffix: "_1"
+  wavelength_min:
+  wavelength_max:
+  type:
+  port: 1
 
-- name: PCM_Bragg
+- name: PCM_ContraDC
+  wavelength: 1310
+  characterization: "Insertion Loss (dB/device)"
+  polarization: TE
+  target_prefix: "PCMcontraDCcascaded"
+  target_suffix: "_2"
+  wavelength_min: 1320
+  wavelength_max: 1333
+  type: 'CDC'
+  port: 2
+
+- name: PCM_Bragg_Period
   characterization: "Bragg Drift (nm)"
   wavelength: 1310
   polarization: TE
   device_prefix: "PCM_Bragg_O_800N"
   device_suffix: "nmPeriod350nmW15nmdW0Apo"
+  type:
   sim_label: "Simulation (1310_SiO2 Clad)"
-  tol:
-  N_seg:
+  threshold: 0.102
+  x_min: 1300
+  x_max: 1350
   port_drop: 1 # port in the measurement set containing the drop port data
   port_thru: 1 # port in the measurement set containing the through port data
+
+- name: PCM_GIndex
+  characterization: "Group Index"
+  wavelength: 1310
+  polarization: TE
+  device_prefix: "PCM_DC_Length"
+  device_suffix: "um_1"
+  measurement_label: "1310" # adjusts set of simulation data used for analysis
+  peak_prominence: 0.85
+  x_min: 1300
+  x_max:
+  port_cross: 1 # port containing the cross-port data to process
+  port_bar: 0 # port containing the bar-port data to process
