@@ -18,7 +18,3 @@ Devices analyzed:
 
 Install package before use through the following command:
 pip install -e .
-
------------------------------------------------------------
-Using PCM_historical.py, please download PCM sheet (https://docs.google.com/spreadsheets/d/1PHGqPo_jVKHcuUClhEERTHBWav59BM6yENoDjtgMfE4/edit?usp=sharing)
-in current working directory
