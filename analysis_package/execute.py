@@ -13,7 +13,6 @@ from PyPDF2 import PdfWriter, PdfReader
 from analysis_package import Device
 from analysis_package.bragg import DirectionalCoupler
 from analysis_package.groupIndex import GroupIndex
-
 class Execute:
     def __init__(self, root_path, chip_name, measure_date, process):
         self.root_path = root_path
@@ -176,7 +175,7 @@ class Execute:
 
         group_index.process_device_data(x_min, x_max)
         group_index.sort_devices_by_length()
-        gindex, gindexError = group_index.plot_group_index(target_wavelength=wavl)
+        gindex, gindexError = group_index.plot_group_index(x_min, x_max, target_wavelength=wavl)
         group_index.plot_coupling_coefficient_contour()
 
         self.results_list = []

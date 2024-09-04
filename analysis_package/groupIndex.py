@@ -14,7 +14,6 @@ import pandas as pd
 from scipy.interpolate import interp1d
 from scipy.signal import find_peaks
 
-
 class GroupIndex:
     def __init__(self, directory_path, wavl, pol, device_prefix, device_suffix, port_cross, port_bar,
                  name, main_script_directory, measurement_label, wavl_range, DL,
@@ -159,36 +158,51 @@ class GroupIndex:
 
                         device.length = self._get_device_parameter(device.deviceID)
 
-                        if min == None:
-                            range_min = self.wavl_range[0]
-                        else:
+                        if min:
                             range_min = min
-                        if max == None:
-                            range_max = self.wavl_range[1]
                         else:
+                            range_min = self.wavl_range[0]
+                        if max:
                             range_max = max
-                        device.wavl, device.pwr[self.port_cross] = siap.analysis.truncate_data(device.wavl,
-                                                                                            siap.core.smooth(device.wavl,
-                                                                                                             device.pwr[self.port_cross],
-                                                                                                             window=self.window),
-                                                                                                             range_min, range_max)
+                        else:
+                            range_max = self.wavl_range[1]
+
+                        # Truncate the device data
+                        device.wavl, device.pwr[self.port_cross] = siap.analysis.truncate_data(
+                            device.wavl,
+                            siap.core.smooth(device.wavl, device.pwr[self.port_cross], window=self.window),
+                            range_min,
+                            range_max
+                        )
+                        # Ensure that truncated data is not empty
+                        if len(device.wavl) == 0 or len(device.pwr[self.port_cross]) == 0:
+                            print(f"Warning: No data left after truncation for device {device.deviceID}")
+                            continue
+
                         [device.cross_T, device.fit] = siap.analysis.baseline_correction(
-                                [device.wavl, device.pwr[self.port_cross]])
-                        midpoints, fsr, extinction_ratios = self._extract_periods(device.wavl, device.cross_T,
-                                                                                min_prominence=self.peak_prominence, plot=False)
+                            [device.wavl, device.pwr[self.port_cross]]
+                        )
+                        midpoints, fsr, extinction_ratios = self._extract_periods(
+                            device.wavl,
+                            device.cross_T,
+                            min_prominence=self.peak_prominence,
+                            plot=False
+                        )
 
                         # plt.show()
 
                         device.ng_wavl = midpoints
-                        device.ng = siap.analysis.getGroupIndex([i * 1e-9 for i in device.ng_wavl],
-                                                                [i * 1e-9 for i in fsr],
-                                                                delta_length=self.DL)
+                        device.ng = siap.analysis.getGroupIndex(
+                            [i * 1e-9 for i in device.ng_wavl],  # Convert wavelengths to meters
+                            [i * 1e-9 for i in fsr],  # Convert FSR to meters
+                            delta_length=self.DL
+                        )
 
                         device.kappa = []
                         for er in extinction_ratios:
                             device.kappa.append(0.5 - 0.5 * np.sqrt(1 / 10 ** (er / 10)))
 
-    def plot_group_index(self, target_wavelength):
+    def plot_group_index(self, x_min, x_max, target_wavelength):
         """
         Plot group index for multiple devices along with simulated data.
 
@@ -196,7 +210,7 @@ class GroupIndex:
         - None
         """
         # Simulated data coefficients for 1550nm
-        ng_500nm_fit_1550 = [-4.58401408e-07,  7.63213215e-05, -1.90478033e-03,  4.11962711e+00]
+        ng_500nm_fit_1550 = [-4.58401408e-07, 7.63213215e-05, -1.90478033e-03, 4.11962711e+00]
         ng_wavl_fit_1550 = [7.71116919e-16, 8.52254170e-13, 1.12019032e-09, 1.45999992e-06]
 
         # Simulated data coefficients for 1310nm
@@ -217,9 +231,17 @@ class GroupIndex:
             title = None
             print("Label not specified")
 
-        # Simulated data
+        # Simulated data in meters
         ng_500nm = np.polyval(ng_500nm_fit, np.linspace(0, 100 - 1, 100))
-        wavl_sim = np.polyval(ng_wavl_fit, np.linspace(0, 100 - 1, 100)) * 1e9
+        wavl_sim = np.polyval(ng_wavl_fit, np.linspace(0, 100 - 1, 100)) * 1e9  # Convert to nanometers
+
+        # Apply truncation to simulation data with conversion to meters
+        if x_min and x_max:
+            range_min_meters = x_min * 1e-9  # Convert nm to meters
+            range_max_meters = x_max * 1e-9  # Convert nm to meters
+            wavl_sim, ng_500nm = siap.analysis.truncate_data(
+                wavl_sim, ng_500nm, range_min_meters, range_max_meters
+            )
 
         fig, ax1 = plt.subplots(figsize=(10, 6))
 
@@ -235,6 +257,10 @@ class GroupIndex:
             # Scatter plot for the cleaned data
             ax1.scatter(cleaned_wavl_device, cleaned_ng_device, color='black', linewidth=0.1)
 
+        if len(cleaned_wavl) == 0 or len(cleaned_ng) == 0:
+            print("Warning: No valid data available for plotting.")
+            return None, None
+
         # Determine the common x-axis (wavelength range) for averaging
         common_wavl = np.linspace(self.wavl_range[0], self.wavl_range[1])
 
@@ -244,7 +270,8 @@ class GroupIndex:
         target_wavelength = np.asarray(target_wavelength, dtype=ng_avg_wavl.dtype)
         idx = np.argmin(np.abs(ng_avg_wavl - target_wavelength))
 
-        print(f"Group Index at {target_wavelength} nm is {ng_avg[idx]} ± {ng_std[idx]} for {self.name}_{self.pol}{self.wavl}")
+        print(
+            f"Group Index at {target_wavelength} nm is {ng_avg[idx]} ± {ng_std[idx]} for {self.name}_{self.pol}{self.wavl}")
 
         gindex = ng_avg[idx]
         gindexError = ng_std[idx]

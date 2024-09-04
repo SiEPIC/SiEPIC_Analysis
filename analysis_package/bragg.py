@@ -12,7 +12,7 @@ Example:    Application of SiEPIC_AP analysis functions
             Process data of various contra-directional couplers (CDCs)
             Extract the period and bandwidth from a set of devices
 """
-#%%
+
 import os
 import sys
 import io
@@ -90,8 +90,14 @@ class DirectionalCoupler:
                         #     device.wavl, device.pwr[self.port_thru], device.pwr[self.port_drop],
                         #     N_seg=self.N_seg, tol=self.tol, verbose=False)
 
-                        device.dropCalib, x, y = self.bragg_calibrate(device.wavl, device.pwr[self.port_thru],
+                        if self.wavl == 1550:
+                            device.dropCalib, x, y = self.bragg_calibrate(device.wavl, device.pwr[self.port_thru],
+                                                                       x_min=self.x_min, x_max=self.x_max, verbose=False)
+
+                        elif self.wavl == 1310:
+                            device.dropCalib, x, y = self.bragg_calibrate(device.wavl, siap.core.smooth(device.wavl, device.pwr[self.port_thru], window=121),
                                                                       x_min=self.x_min, x_max=self.x_max, verbose=False)
+
                         # plt.show()
 
                         [device.BW, device.WL] = siap.analysis.bandwidth(device.wavl, -device.dropCalib, threshold=6)
