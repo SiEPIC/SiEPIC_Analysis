@@ -18,3 +18,5 @@ Devices analyzed:
 
 Install package before use through the following command:
 pip install -e .
+
+To be merged with PWB_calibration
