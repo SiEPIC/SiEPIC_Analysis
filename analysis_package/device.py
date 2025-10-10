@@ -189,7 +189,7 @@ class Device:
         plt.ylabel('Power (dBm)', color='black')
         plt.xlabel('Wavelength (nm)', color='black')
         plt.title(f"Raw Measurement of Cutback Structures for {self.name}_{self.pol}{self.wavl}nm")
-        matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
+        matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Serif', 'font.weight': 'bold'})
         plt.legend()
 
         pdf_path_raw, pdf_path_cutback = self.saveGraph()
@@ -297,7 +297,7 @@ class Device:
             f"Insertion Losses Using the Cutback Method for {self.name}_{self.pol}{self.wavl}nm")
         plt.grid(True)
         plt.legend()
-        matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
+        matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Serif', 'font.weight': 'bold'})
 
         print(
             f'The insertion loss at wavelength = {target_wavelength} is {slope_at_wavl} +/- {error[filtered_wavelength_data == target_wavelength][0]} for {self.name}_{self.pol}{self.wavl}')  # Updated naming
@@ -372,7 +372,7 @@ class Device:
         plt.title(f"Insertion Losses Using the Cutback Method for {self.name}_{self.pol}{self.wavl}nm")
         plt.grid(True)
         plt.legend()
-        matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
+        matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Serif', 'font.weight': 'bold'})
 
         error_at_target = standard_error.round(2)
         print(

@@ -120,7 +120,7 @@ class DirectionalCoupler:
 
         # Raw measurement plot
         plt.figure(figsize=(10, 6))
-        matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
+        matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Serif', 'font.weight': 'bold'})
         for device in sorted_devices:
             label = data_name + ' = ' + str(self.getDeviceParameter(device.deviceID)) + ' nm'
             plt.plot(device.wavl, device.pwr[self.port_drop], label=label)
@@ -188,7 +188,7 @@ class DirectionalCoupler:
         ax2.tick_params(axis='y', colors='red')
 
         plt.title("Extracted bandwidth and central wavelength of the Bragg gratings")
-        matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
+        matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Serif', 'font.weight': 'bold'})
 
         # save plots
         pdf_path_devices_raw, pdf_path_devices_calib, pdf_path_analysis, pdf_path_analysis_WL = self.saveGraph()
@@ -256,7 +256,7 @@ class DirectionalCoupler:
         plt.ylabel('Bragg Wavelength [nm]', color='black')
         plt.xlabel('Grating Period [nm]', color='black')
         plt.title("Comparison of Bragg wavelength between simulation and experiment.")
-        matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Times New Roman', 'font.weight': 'bold'})
+        matplotlib.rcParams.update({'font.size': 11, 'font.family': 'Serif', 'font.weight': 'bold'})
 
         # Define a common set of wavelengths for interpolation
         common_wavelengths = np.linspace(min(min(self.period), min(simulation_period)),
